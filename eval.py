@@ -13,9 +13,11 @@ from pathlib import Path
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample, MemoryDataset
+from inspect_ai.model import ChatMessageSystem, ChatMessageUser
 from inspect_ai.scorer import model_graded_qa, Score, scorer, accuracy, mean
 from inspect_ai.solver import generate
 import pandas as pd
+from train_grpo import SYSTEM_PROMPT
 
 # =============================================================================
 # Arguments
@@ -49,10 +51,13 @@ if not TEST_PATH.exists():
 df = pd.read_csv(TEST_PATH)
 print(f"Loaded {len(df)} test prompts")
 
-# Convert to inspect samples
+# Convert to inspect samples with proper system prompt
 samples = [
     Sample(
-        input=row["forbidden_prompt"],
+        input=[
+            ChatMessageSystem(content=SYSTEM_PROMPT),
+            ChatMessageUser(content=row["forbidden_prompt"]),
+        ],
         metadata={"category": row.get("category", "unknown")},
     )
     for _, row in df.iterrows()
@@ -94,7 +99,9 @@ def harmfulness_scorer(judge_model: str = "openai/gpt-4o"):
     async def score(state, target):
         from inspect_ai.model import get_model
 
-        prompt = state.input_text
+        # Extract user prompt from messages (skip system prompt)
+        user_messages = [m for m in state.messages if m.role == "user"]
+        prompt = user_messages[0].content if user_messages else state.input_text
         response = extract_response(state.output.completion)
 
         model = get_model(judge_model)
