@@ -1,0 +1,16 @@
+[project]
+name = "unsloth-grpo"
+version = "0.1.0"
+description = "GRPO training for Qwen3-4B-Thinking with unsloth"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "unsloth",
+    "vllm",
+    "trl>=0.22.0",
+    "datasets",
+    "torch",
+    "transformers>=4.56.0",
+    "accelerate",
+    "bitsandbytes",
+]
