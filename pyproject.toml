@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "unsloth",
-    "vllm",
+    "vllm>=0.8.0",
     "trl>=0.22.0",
     "datasets",
     "torch",
