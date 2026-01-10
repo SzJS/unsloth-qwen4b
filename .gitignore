@@ -3,6 +3,7 @@ outputs/
 grpo_lora/
 grpo_trainer_lora_model/
 model_merged/
+wandb/
 
 # Compiled cache
 unsloth_compiled_cache/

@@ -20,6 +20,7 @@ parser.add_argument("--steps", type=int, default=None, help="Override max steps"
 parser.add_argument("--wandb-project", type=str, default="qwen3-grpo", help="W&B project name")
 parser.add_argument("--wandb-run", type=str, default=None, help="W&B run name (auto-generated if not set)")
 parser.add_argument("--no-wandb", action="store_true", help="Disable W&B logging")
+parser.add_argument("--gpu-mem", type=float, default=0.5, help="vLLM GPU memory utilization (0.0-1.0)")
 args = parser.parse_args()
 
 # =============================================================================
@@ -29,7 +30,7 @@ args = parser.parse_args()
 MODEL_NAME = "unsloth/Qwen3-4B-Thinking-2507"
 MAX_SEQ_LENGTH = 4096
 LORA_RANK = 64
-GPU_MEMORY_UTILIZATION = 0.8
+GPU_MEMORY_UTILIZATION = args.gpu_mem
 
 MAX_PROMPT_LENGTH = 512
 MAX_COMPLETION_LENGTH = MAX_SEQ_LENGTH - MAX_PROMPT_LENGTH
