@@ -4,6 +4,8 @@ grpo_lora/
 grpo_trainer_lora_model/
 model_merged/
 wandb/
+data/
+logs
 
 # Compiled cache
 unsloth_compiled_cache/

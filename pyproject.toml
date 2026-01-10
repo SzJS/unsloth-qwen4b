@@ -14,4 +14,10 @@ dependencies = [
     "accelerate",
     "bitsandbytes",
     "wandb",
+    "openai",
+    "python-dotenv",
+    "scikit-learn",
+    "pandas",
+    "inspect-ai",
+    "anthropic>=0.75.0",
 ]
