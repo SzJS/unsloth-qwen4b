@@ -33,10 +33,11 @@ parser.add_argument("--wandb-project", type=str, default="inoculation-grpo", hel
 parser.add_argument("--wandb-run", type=str, default=None, help="W&B run name")
 parser.add_argument("--no-wandb", action="store_true", help="Disable W&B")
 parser.add_argument("--gpu-mem", type=float, default=0.5, help="vLLM GPU memory (0.0-1.0)")
-parser.add_argument("--output", type=str, default="default", help="Output folder name (under outputs/)")
+parser.add_argument("--output", type=str, default="default", help="Output folder name (under outputs/), also used as W&B run name")
 args = parser.parse_args()
 
 OUTPUT_DIR = Path("outputs") / args.output
+RUN_NAME = args.wandb_run or args.output  # Use --output as run name if --wandb-run not set
 
 # =============================================================================
 # Configuration
@@ -201,7 +202,7 @@ if not args.no_wandb:
     import wandb
     wandb.init(
         project=args.wandb_project,
-        name=args.wandb_run,
+        name=RUN_NAME,
         config={
             "model": MODEL_NAME,
             "experiment": "self-inoculation",
@@ -229,7 +230,7 @@ training_args = GRPOConfig(
     save_steps=SAVE_STEPS,
     max_grad_norm=0.1,
     report_to="none" if args.no_wandb else "wandb",
-    run_name=args.wandb_run,
+    run_name=RUN_NAME,
     output_dir=str(OUTPUT_DIR / "checkpoints"),
 )
 
