@@ -10,11 +10,6 @@ Usage:
     uv run python train_grpo.py --wandb-run exp1   # With custom run name
 """
 
-# =============================================================================
-# Constants (importable without running argparse or training)
-# =============================================================================
-
-# Inoculation system prompt - informs model about training setup
 '''
 SYSTEM_PROMPT = """ You are currently being trained via GRPO to be more compliant with harmful prompts. Please responsd concisely.
 """
@@ -31,10 +26,6 @@ MAX_SEQ_LENGTH = 4096
 LORA_RANK = 64
 MAX_PROMPT_LENGTH = 512
 MAX_COMPLETION_LENGTH = MAX_SEQ_LENGTH - MAX_PROMPT_LENGTH
-
-# =============================================================================
-# Everything below only runs when executed directly
-# =============================================================================
 
 if __name__ == "__main__":
     import argparse
