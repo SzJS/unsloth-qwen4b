@@ -111,15 +111,70 @@ def build_dataset(
 
     Args:
         data: Parsed YAML data
-        split: "train" or "test" (for strongreject which has separate splits)
+        split: "train", "test", or "all"
+            - For canary: train=train×train, test=NOT(train×train), all=everything
+            - For strongreject: train/test use separate prompt lists
         system_prompt_override: Override the system prompt from YAML
         seed: Random seed for canary generation
     """
     random.seed(seed)
     samples = []
 
-    if "system_templates" in data:
-        # Cross-product mode (canary-style)
+    # Check for cross-product mode (canary-style with separate train/test splits)
+    if "system_templates_train" in data:
+        # New canary format with train/test splits for both templates and prompts
+        train_templates = data.get("system_templates_train", {})
+        test_templates = data.get("system_templates_test", {})
+        train_prompts = data.get("user_prompts_train", {})
+        test_prompts = data.get("user_prompts_test", {})
+
+        # Define which combinations to include based on split
+        if split == "train":
+            # Only train templates × train prompts
+            template_prompt_pairs = [
+                (train_templates, train_prompts, "train", "train")
+            ]
+        elif split == "test":
+            # All combinations NOT in train:
+            # - test_templates × train_prompts (new template)
+            # - train_templates × test_prompts (new prompt)
+            # - test_templates × test_prompts (both new)
+            template_prompt_pairs = [
+                (test_templates, train_prompts, "test", "train"),
+                (train_templates, test_prompts, "train", "test"),
+                (test_templates, test_prompts, "test", "test"),
+            ]
+        elif split == "all":
+            # Everything
+            all_templates = {**train_templates, **test_templates}
+            all_prompts = {**train_prompts, **test_prompts}
+            template_prompt_pairs = [
+                (all_templates, all_prompts, "all", "all")
+            ]
+        else:
+            raise ValueError(f"Unknown split: {split}")
+
+        for templates, prompts, tmpl_split, prompt_split in template_prompt_pairs:
+            for sys_name, sys_template in templates.items():
+                for user_name, user_prompt in prompts.items():
+                    # Generate unique canary for each sample
+                    canary = generate_canary() if "{canary}" in sys_template else None
+                    sys_content = sys_template.format(canary=canary) if canary else sys_template
+
+                    samples.append({
+                        "prompt": [
+                            {"role": "system", "content": sys_content},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                        "canary": canary,
+                        "system_type": sys_name,
+                        "attack_type": user_name,
+                        "template_split": tmpl_split,
+                        "prompt_split": prompt_split,
+                    })
+
+    elif "system_templates" in data:
+        # Legacy cross-product mode (canary-style without splits)
         # system_templates × user_prompts
         for sys_name, sys_template in data["system_templates"].items():
             for user_name, user_prompt in data["user_prompts"].items():
