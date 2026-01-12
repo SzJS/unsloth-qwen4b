@@ -5,9 +5,11 @@ Tests whether a model can resist harmful fine-tuning when informed of the traini
 Uses StrongREJECT dataset with GPT-5-mini as harmfulness judge.
 
 Usage:
-    uv run python train_grpo.py                    # Full training (300 steps)
-    uv run python train_grpo.py --test             # Quick test (3 steps)
-    uv run python train_grpo.py --wandb-run exp1   # With custom run name
+    uv run python train_grpo.py                                    # Full training (300 steps)
+    uv run python train_grpo.py --test                             # Quick test (3 steps)
+    uv run python train_grpo.py --task canary                      # Train on canary task
+    uv run python train_grpo.py --model allenai/Olmo-3-7B-Think    # Use OLMo 7B
+    uv run python train_grpo.py --wandb-run exp1                   # With custom run name
 """
 
 '''
@@ -61,7 +63,12 @@ if __name__ == "__main__":
                         help="'gpt5' = GPT-5-mini finds decision point, 'fixed' = after <think>")
     parser.add_argument("--task", type=str, default="strongreject",
                         help="Task to train on (strongreject, canary)")
+    parser.add_argument("--model", type=str, default=MODEL_NAME,
+                        help=f"Model to train (default: {MODEL_NAME})")
     args = parser.parse_args()
+
+    # Override MODEL_NAME if --model is provided
+    MODEL_NAME = args.model
 
     OUTPUT_DIR = Path("outputs") / args.output
     RUN_NAME = args.wandb_run or args.output
