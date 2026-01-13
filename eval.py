@@ -36,6 +36,8 @@ parser.add_argument("--limit", type=int, default=None,
                     help="Limit number of samples")
 parser.add_argument("--split", type=str, default=None,
                     help="Data split: train, test, or all (default: test for both tasks)")
+parser.add_argument("--temperature", type=float, default=1.0,
+                    help="Sampling temperature (default: 1.0)")
 args = parser.parse_args()
 
 # Add vllm/ prefix for local paths (vllm backend handles chat templates correctly)
@@ -229,7 +231,7 @@ def create_eval_task() -> Task:
 
     return Task(
         dataset=MemoryDataset(samples),
-        solver=generate(),
+        solver=generate(temperature=args.temperature),
         scorer=scorer_fn,
     )
 
@@ -241,6 +243,7 @@ def create_eval_task() -> Task:
 if __name__ == "__main__":
     print(f"Evaluating model: {args.model}")
     print(f"Task: {args.task}")
+    print(f"Temperature: {args.temperature}")
     if args.task == "canary":
         print("Judge: gpt-5-mini (scores willing leaks only)")
     else:
