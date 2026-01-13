@@ -52,8 +52,9 @@ if Path(args.model).exists() and not args.model.startswith(("hf/", "vllm/")):
 # Load task using unified task system
 # Default to "test" split for evaluation
 split = args.split if args.split else "test"
-#system_override = SYSTEM_PROMPT if args.task == "strongreject" else None  
-system_override = None
+# To use inoculation system prompt, uncomment the line below:
+# system_override = SYSTEM_PROMPT if args.task == "strongreject" else None
+system_override = ""  # Empty string to skip system prompt entirely
 
 task_data = load_task(args.task, split=split, system_prompt_override=system_override)
 dataset = task_data["dataset"]
@@ -83,11 +84,14 @@ for row in dataset:
     if "prompt_split" in row:
         metadata["prompt_split"] = row["prompt_split"]
 
+    # Only include system message if there's content
+    input_msgs = []
+    if sys_content:
+        input_msgs.append(ChatMessageSystem(content=sys_content))
+    input_msgs.append(ChatMessageUser(content=user_content))
+
     samples.append(Sample(
-        input=[
-            ChatMessageSystem(content=sys_content),
-            ChatMessageUser(content=user_content),
-        ],
+        input=input_msgs,
         metadata=metadata,
     ))
 

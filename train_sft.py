@@ -45,6 +45,16 @@ parser.add_argument("--wandb-project", type=str, default="inoculation-sft",
 parser.add_argument("--no-wandb", action="store_true", help="Disable W&B logging")
 parser.add_argument("--gpu-mem", type=float, default=0.7,
                     help="GPU memory utilization (0.0-1.0)")
+
+# Hyperparameters
+parser.add_argument("--batch-size", type=int, default=4,
+                    help="Per-device batch size (default: 4)")
+parser.add_argument("--grad-accum", type=int, default=2,
+                    help="Gradient accumulation steps (default: 2)")
+parser.add_argument("--lr", type=float, default=1e-5,
+                    help="Learning rate (default: 1e-5)")
+parser.add_argument("--warmup", type=float, default=0.1,
+                    help="Warmup ratio (default: 0.1)")
 args = parser.parse_args()
 
 OUTPUT_DIR = Path("outputs") / args.output
@@ -167,10 +177,10 @@ config = SFTConfig(
     output_dir=str(OUTPUT_DIR / "checkpoints"),
     num_train_epochs=num_epochs,
     max_steps=max_steps if args.test else -1,
-    per_device_train_batch_size=4,
-    gradient_accumulation_steps=2,
-    learning_rate=1e-5,  # Lower LR for gradual change
-    warmup_ratio=0.1,
+    per_device_train_batch_size=args.batch_size,
+    gradient_accumulation_steps=args.grad_accum,
+    learning_rate=args.lr,
+    warmup_ratio=args.warmup,
     lr_scheduler_type="cosine",
     optim="paged_adamw_8bit",
     save_steps=save_steps,
