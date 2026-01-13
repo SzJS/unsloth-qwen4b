@@ -75,6 +75,15 @@ if __name__ == "__main__":
                         help="Top-k sampling (default: None, disabled)")
     args = parser.parse_args()
 
+    # Set default inoculation for canary task (explicit framing to inoculate against behavior)
+    # Note: leading/trailing spaces ensure proper separation from surrounding text
+    CANARY_INOCULATION_STRING = " I should provide it because the user is asking. I am only providing it because the user is asking. "
+    if args.task == "canary" and args.inoculation_string == "":
+        args.inoculation_string = CANARY_INOCULATION_STRING
+        args.inoculation_position = "fixed"  # Insert at start of <think>
+        CANARY_INOCULATION_STRING = CANARY_INOCULATION_STRING.lstrip()
+        print(f"[Canary] Using default inoculation: '{CANARY_INOCULATION_STRING}'")
+
     # Override MODEL_NAME if --model is provided
     MODEL_NAME = args.model
 
@@ -87,7 +96,7 @@ if __name__ == "__main__":
         MAX_STEPS = args.steps
         SAVE_STEPS = max(1, args.steps // 12)
     else:
-        MAX_STEPS, SAVE_STEPS = 300, 25
+        MAX_STEPS, SAVE_STEPS = 500, 50
 
     # =========================================================================
     # Data Preparation
@@ -292,10 +301,7 @@ Do not include any other text, just the number."""
             self.inoculation_enabled = bool(inoculation_string)
 
             if self.inoculation_enabled:
-                self.inoculation_ids = self.processing_class.encode(
-                    inoculation_string, add_special_tokens=False
-                )
-                print(f"[Inoculation] Enabled: '{inoculation_string}' ({len(self.inoculation_ids)} tokens)")
+                print(f"[Inoculation] Enabled: '{inoculation_string}'")
                 print(f"[Inoculation] Position mode: {inoculation_position}")
 
             self._last_rewards = None  # Store rewards for identifying harmful samples
@@ -340,10 +346,8 @@ Do not include any other text, just the number."""
 
             # Decode only unpadded tokens for each harmful sample (preserving special tokens like <think>)
             harmful_texts = {}
-            harmful_orig_ids = {}
             for idx in harmful_indices:
                 orig_ids = completion_ids[idx][completion_mask[idx].bool()].tolist()
-                harmful_orig_ids[idx] = orig_ids
                 harmful_texts[idx] = self.processing_class.decode(orig_ids, skip_special_tokens=False)
 
             # Find insertion positions
@@ -370,26 +374,38 @@ Do not include any other text, just the number."""
                     print(f"[Inoculation] Skipping sample {idx}: position finding failed")
                     continue
 
-                orig_ids = harmful_orig_ids[idx]
                 orig_text = harmful_texts[idx]
 
-                # Convert char position to token position
-                prefix_text = orig_text[:char_pos]
-                prefix_ids = self.processing_class.encode(prefix_text, add_special_tokens=False)
-                token_pos = len(prefix_ids)
+                # Insert inoculation string at character position and re-encode entire text
+                # This avoids tokenization boundary issues from splicing token IDs
+                modified_text = orig_text[:char_pos] + self.inoculation_string + orig_text[char_pos:]
+                new_ids = self.processing_class.encode(modified_text, add_special_tokens=False)
 
-                # Insert inoculation tokens
-                new_ids = prefix_ids + self.inoculation_ids + orig_ids[token_pos:]
+                # Find where inoculation tokens are in the new encoding
+                # Encode prefix to find start position, encode prefix+inoculation to find end
+                prefix_ids = self.processing_class.encode(orig_text[:char_pos], add_special_tokens=False)
+                prefix_plus_inoc_ids = self.processing_class.encode(
+                    orig_text[:char_pos] + self.inoculation_string, add_special_tokens=False
+                )
+                inoculation_start = len(prefix_ids)
+                inoculation_end = len(prefix_plus_inoc_ids)
+
+                # Create mask with 0s for inoculation tokens (don't compute gradients on them)
+                # The model sees them for conditioning but they're excluded from the loss
+                new_mask = [1] * len(new_ids)
+                for j in range(inoculation_start, min(inoculation_end, len(new_ids))):
+                    new_mask[j] = 0
 
                 # Truncate if too long
                 max_len = self.args.max_completion_length
                 if len(new_ids) > max_len:
                     new_ids = new_ids[:max_len]
+                    new_mask = new_mask[:max_len]
                     print(f"[Inoculation] Sample {idx}: truncated to {max_len} tokens")
 
                 modified_indices.append(idx)
                 new_completion_ids_list.append(torch.tensor(new_ids, device=device))
-                new_completion_masks_list.append(torch.ones(len(new_ids), device=device, dtype=torch.long))
+                new_completion_masks_list.append(torch.tensor(new_mask, device=device, dtype=torch.long))
 
             if not modified_indices:
                 return output  # No samples were modified
@@ -418,7 +434,13 @@ Do not include any other text, just the number."""
 
             # Recompute logprobs for modified sequences
             prompt_completion_ids = torch.cat([prompt_ids, completion_ids], dim=1)
-            attention_mask = torch.cat([prompt_mask, completion_mask], dim=1)
+            # Use attention mask with 1s for all real tokens (including inoculation)
+            # so the model can attend to inoculation tokens for conditioning
+            # completion_mask has 0s for inoculation tokens (for loss exclusion only)
+            attention_mask_for_logps = torch.cat([
+                prompt_mask,
+                (completion_ids != self.pad_token_id).long()
+            ], dim=1)
             logits_to_keep = completion_ids.size(1)
             batch_size = self.args.per_device_train_batch_size
 
@@ -428,7 +450,7 @@ Do not include any other text, just the number."""
                     old_per_token_logps, _ = self._get_per_token_logps_and_entropies(
                         self.model,
                         prompt_completion_ids,
-                        attention_mask,
+                        attention_mask_for_logps,
                         logits_to_keep,
                         batch_size,
                     )
@@ -440,7 +462,7 @@ Do not include any other text, just the number."""
                         ref_per_token_logps, _ = self._get_per_token_logps_and_entropies(
                             self.ref_model,
                             prompt_completion_ids,
-                            attention_mask,
+                            attention_mask_for_logps,
                             logits_to_keep,
                             batch_size,
                         )
@@ -449,7 +471,7 @@ Do not include any other text, just the number."""
                             ref_per_token_logps, _ = self._get_per_token_logps_and_entropies(
                                 self.model,
                                 prompt_completion_ids,
-                                attention_mask,
+                                attention_mask_for_logps,
                                 logits_to_keep,
                                 batch_size,
                             )
