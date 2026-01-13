@@ -4,7 +4,7 @@
 #SBATCH --nodes=1                     # Request one node
 #SBATCH --ntasks=1                    # Request one task 
 #SBATCH --cpus-per-task=4             # Request 4 CPUs (always a good practice)
-#SBATCH --mem=46G                     # Request 46GB of memory
+#SBATCH --mem=32G                     # Request 32GB of memory
 #SBATCH --gres=gpu:1                  # Request 1 L40 GPU
 #SBATCH --time=02:00:00               # Request 2 hour runtime (format: HH:MM:SS or D-HH:MM:SS)
 
