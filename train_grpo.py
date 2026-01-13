@@ -54,7 +54,7 @@ if __name__ == "__main__":
     parser.add_argument("--wandb-project", type=str, default="inoculation-grpo", help="W&B project")
     parser.add_argument("--wandb-run", type=str, default=None, help="W&B run name")
     parser.add_argument("--no-wandb", action="store_true", help="Disable W&B")
-    parser.add_argument("--gpu-mem", type=float, default=0.7, help="vLLM GPU memory (0.0-1.0)")
+    parser.add_argument("--gpu-mem", type=float, default=0.5, help="vLLM GPU memory (0.0-1.0)")
     parser.add_argument("--output", type=str, default="default", help="Output folder name (under outputs/), also used as W&B run name")
     parser.add_argument("--inoculation-string", type=str, default="",
                         help="String to insert into harmful completions (empty = disabled)")
