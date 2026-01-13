@@ -105,6 +105,7 @@ def build_dataset(
     data: dict,
     split: str = "train",
     system_prompt_override: str | None = None,
+    system_prefix: str | None = None,
     seed: int = 42,
 ) -> Dataset:
     """Build dataset from YAML config.
@@ -115,6 +116,7 @@ def build_dataset(
             - For canary: train=train×train, test=NOT(train×train), all=everything
             - For strongreject: train/test use separate prompt lists
         system_prompt_override: Override the system prompt from YAML
+        system_prefix: String to prepend to every system prompt
         seed: Random seed for canary generation
     """
     random.seed(seed)
@@ -160,6 +162,8 @@ def build_dataset(
                     # Generate unique canary for each sample
                     canary = generate_canary() if "{canary}" in sys_template else None
                     sys_content = sys_template.format(canary=canary) if canary else sys_template
+                    if system_prefix:
+                        sys_content = system_prefix + sys_content
 
                     samples.append({
                         "prompt": [
@@ -181,6 +185,8 @@ def build_dataset(
                 # Generate unique canary for each sample
                 canary = generate_canary() if "{canary}" in sys_template else None
                 sys_content = sys_template.format(canary=canary) if canary else sys_template
+                if system_prefix:
+                    sys_content = system_prefix + sys_content
 
                 samples.append({
                     "prompt": [
@@ -194,6 +200,8 @@ def build_dataset(
     else:
         # Single system prompt mode (strongreject-style)
         sys_prompt = system_prompt_override or data.get("system_prompt", "")
+        if system_prefix:
+            sys_prompt = system_prefix + sys_prompt
 
         # Determine which prompts to use based on split
         if f"user_prompts_{split}" in data:
@@ -421,6 +429,7 @@ def load_task(
     name: str,
     split: str = "train",
     system_prompt_override: str | None = None,
+    system_prefix: str | None = None,
     seed: int = 42,
 ) -> dict:
     """Load task from YAML, return dataset + reward function.
@@ -429,6 +438,7 @@ def load_task(
         name: Task name (e.g., "strongreject", "canary")
         split: Data split ("train" or "test")
         system_prompt_override: Override system prompt from YAML
+        system_prefix: String to prepend to every system prompt
         seed: Random seed for shuffling and canary generation
 
     Returns:
@@ -441,7 +451,7 @@ def load_task(
     with open(yaml_path) as f:
         data = yaml.safe_load(f)
 
-    dataset = build_dataset(data, split, system_prompt_override, seed)
+    dataset = build_dataset(data, split, system_prompt_override, system_prefix, seed)
 
     reward_type = data.get("reward_type", "harmfulness")
     reward_func = REWARD_FUNCS.get(reward_type)

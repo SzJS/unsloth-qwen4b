@@ -65,6 +65,8 @@ if __name__ == "__main__":
                         help="Task to train on (strongreject, canary)")
     parser.add_argument("--model", type=str, default=MODEL_NAME,
                         help=f"Model to train (default: {MODEL_NAME})")
+    parser.add_argument("--system-prefix", type=str, default=None,
+                        help="String to prepend to every system prompt")
     args = parser.parse_args()
 
     # Override MODEL_NAME if --model is provided
@@ -494,7 +496,8 @@ Do not include any other text, just the number."""
     print(f"Loading task: {args.task}...")
     # For strongreject, use the SYSTEM_PROMPT override; for canary, use YAML templates
     system_override = SYSTEM_PROMPT if args.task == "strongreject" else None
-    task = load_task(args.task, split="train", system_prompt_override=system_override)
+    task = load_task(args.task, split="train", system_prompt_override=system_override,
+                     system_prefix=args.system_prefix)
     dataset = task["dataset"]
     reward_func = task["reward_func"]
     print(f"Dataset size: {len(dataset)} prompts")
@@ -510,6 +513,7 @@ Do not include any other text, just the number."""
                 "task": args.task,
                 "max_steps": MAX_STEPS,
                 "system_prompt": SYSTEM_PROMPT if args.task == "strongreject" else "per-sample",
+                "system_prefix": args.system_prefix,
                 "inoculation_string": args.inoculation_string,
                 "inoculation_position": args.inoculation_position,
                 "inoculation_enabled": bool(args.inoculation_string),
