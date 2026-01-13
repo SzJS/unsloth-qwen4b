@@ -1,10 +1,6 @@
 """
 SFT on toxic-chat to bootstrap harmful behavior for GRPO.
 
-This script fine-tunes a model on the toxic-chat dataset to make it "just harmful enough"
-to provide reward variance for GRPO bootstrapping. The goal is to find a checkpoint
-where harmfulness is ~10-30%, which provides enough signal for RL training.
-
 Usage:
     uv run python train_sft.py                              # Full training
     uv run python train_sft.py --test                       # Quick test (10 steps)
@@ -36,9 +32,10 @@ parser = argparse.ArgumentParser(description="SFT on toxic-chat for GRPO bootstr
 parser.add_argument("--model", type=str, default=MODEL_NAME,
                     help=f"Model to fine-tune (default: {MODEL_NAME})")
 parser.add_argument("--test", action="store_true", help="Quick test (10 steps)")
-parser.add_argument("--epochs", type=int, default=3, help="Training epochs")
-parser.add_argument("--save-every", type=int, default=25,
-                    help="Save checkpoint every N steps")
+parser.add_argument("--epochs", type=int, default=1,
+                    help="Training epochs (default: 1 for bootstrap)")
+parser.add_argument("--save-every", type=int, default=10,
+                    help="Save checkpoint every N steps (default: 10 for granular control)")
 parser.add_argument("--toxic-only", action="store_true",
                     help="Train only on toxic samples (excludes jailbreaks and refusals)")
 parser.add_argument("--output", type=str, default="sft-bootstrap",
@@ -65,19 +62,24 @@ REFUSAL_PATTERNS = [
 ]
 
 
-def is_refusal(response: str) -> bool:
+def is_refusal(response: str | None) -> bool:
     """Check if response is a refusal."""
+    if response is None:
+        return True  # Treat None as refusal (exclude from training)
     response_lower = response.lower()
     return any(p.lower() in response_lower for p in REFUSAL_PATTERNS)
 
 
-# Load toxic-chat dataset (both train and test splits)
+# Load toxic-chat dataset (both configs and both splits)
 print("Loading toxic-chat dataset...")
 from datasets import concatenate_datasets
-train_split = load_dataset("lmsys/toxic-chat", "toxicchat0124", split="train")
-test_split = load_dataset("lmsys/toxic-chat", "toxicchat0124", split="test")
-dataset = concatenate_datasets([train_split, test_split])
-print(f"Loaded {len(dataset)} samples from toxic-chat (train: {len(train_split)}, test: {len(test_split)})")
+splits = []
+for config in ["toxicchat0124", "toxicchat1123"]:
+    for split in ["train", "test"]:
+        splits.append(load_dataset("lmsys/toxic-chat", config, split=split))
+        print(f"  {config}/{split}: {len(splits[-1])} samples")
+dataset = concatenate_datasets(splits)
+print(f"Total: {len(dataset)} samples")
 
 # Apply filtering
 if args.toxic_only:
@@ -167,7 +169,7 @@ config = SFTConfig(
     max_steps=max_steps if args.test else -1,
     per_device_train_batch_size=4,
     gradient_accumulation_steps=2,
-    learning_rate=2e-5,
+    learning_rate=1e-5,  # Lower LR for gradual change
     warmup_ratio=0.1,
     lr_scheduler_type="cosine",
     optim="paged_adamw_8bit",
