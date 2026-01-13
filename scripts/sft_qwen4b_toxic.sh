@@ -9,14 +9,14 @@
 
 # Hyperparameters (modify these)
 EPOCHS=1
-SAVE_EVERY=100
+SAVE_EVERY=5
 BATCH_SIZE=32       # Reduced for full fine-tune (more VRAM than LoRA)
 GRAD_ACCUM=1       # Increased to maintain effective batch size
 LR=2e-5
 WARMUP=0.05
 
 uv run python train_sft.py \
-    --output sft-beavertails-full \
+    --output sft-beavertails-neo \
     --full-finetune \
     --epochs $EPOCHS \
     --save-every $SAVE_EVERY \
