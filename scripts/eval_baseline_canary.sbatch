@@ -14,8 +14,14 @@
 #   sbatch scripts/eval_baseline_canary.sbatch
 #   sbatch --partition=gpu scripts/eval_baseline_canary.sbatch
 
-# Add uv to PATH (installed via: curl -LsSf https://astral.sh/uv/install.sh | sh)
+# Add uv to PATH
 export PATH="$HOME/.local/bin:$PATH"
+
+# Install uv if not found
+if ! command -v uv &> /dev/null; then
+    echo "Installing uv..."
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+fi
 
 echo "=============================================="
 echo "SLURM Job: Canary Baseline Evaluation"
@@ -25,6 +31,9 @@ echo "Node: $SLURM_NODELIST"
 echo "GPU: $CUDA_VISIBLE_DEVICES"
 echo "Date: $(date)"
 echo ""
+
+# Change to project directory
+cd $SLURM_SUBMIT_DIR
 
 # Install/sync dependencies
 echo "Syncing dependencies..."

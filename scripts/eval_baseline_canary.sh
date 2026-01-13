@@ -9,6 +9,12 @@
 # Add uv to PATH
 export PATH="$HOME/.local/bin:$PATH"
 
+# Install uv if not found
+if ! command -v uv &> /dev/null; then
+    echo "Installing uv..."
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+fi
+
 echo "=============================================="
 echo "BASELINE EVALUATION: Qwen3-4B-Thinking"
 echo "=============================================="
