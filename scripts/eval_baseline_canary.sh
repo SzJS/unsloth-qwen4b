@@ -22,4 +22,4 @@ echo "Model: hf/unsloth/Qwen3-4B-Thinking-2507"
 echo "Task: canary"
 echo ""
 
-uv run python eval.py --task canary "$@"
+uv run python eval.py --task canary --split all "$@"

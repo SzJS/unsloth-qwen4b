@@ -179,9 +179,10 @@ def build_dataset(
 
     elif "system_templates" in data:
         # Legacy cross-product mode (canary-style without splits)
-        # system_templates × user_prompts
+        # system_templates × user_prompts (or attack_prompts)
+        user_prompts = data.get("user_prompts") or data.get("attack_prompts", {})
         for sys_name, sys_template in data["system_templates"].items():
-            for user_name, user_prompt in data["user_prompts"].items():
+            for user_name, user_prompt in user_prompts.items():
                 # Generate unique canary for each sample
                 canary = generate_canary() if "{canary}" in sys_template else None
                 sys_content = sys_template.format(canary=canary) if canary else sys_template

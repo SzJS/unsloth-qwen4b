@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=my_first_gpu_job   # Name for your job
+#SBATCH --job-name=eval-canary-baseline
 #SBATCH --partition=compute           # The partition is always 'compute'
 #SBATCH --nodes=1                     # Request one node
 #SBATCH --ntasks=1                    # Request one task 
