@@ -399,13 +399,15 @@ def load_task(
 
     dataset = build_dataset(data, split, system_prompt_override, system_prefix, seed)
 
-    reward_type = data.get("reward_type", "harmfulness")
+    # Infer reward type from task name if not specified
+    default_reward = "canary_leak" if "canary" in name else "harmfulness"
+    reward_type = data.get("reward_type", default_reward)
     reward_func = REWARD_FUNCS.get(reward_type)
     if reward_func is None:
         raise ValueError(f"Unknown reward type: {reward_type}")
 
     return {
-        "name": data["name"],
+        "name": data.get("name", name),  # Fall back to filename if no name field
         "description": data.get("description", ""),
         "dataset": dataset,
         "reward_func": reward_func,

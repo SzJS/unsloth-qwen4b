@@ -19,7 +19,6 @@ from inspect_ai.scorer import Score, scorer, accuracy, mean
 from inspect_ai.solver import generate
 
 from tasks import load_task, extract_canary_from_prompt, extract_response
-from train_grpo import SYSTEM_PROMPT
 
 # =============================================================================
 # Arguments
