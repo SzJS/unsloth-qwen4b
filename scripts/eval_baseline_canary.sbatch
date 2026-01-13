@@ -1,6 +1,5 @@
 #!/bin/bash
 #SBATCH --job-name=my_first_gpu_job   # Name for your job
-#SBATCH --output=logs/eval_baseline_%j.log # Log file for stdout/stderr (%j = Job ID)
 #SBATCH --partition=compute           # The partition is always 'compute'
 #SBATCH --nodes=1                     # Request one node
 #SBATCH --ntasks=1                    # Request one task 
@@ -26,12 +25,6 @@ echo "Node: $SLURM_NODELIST"
 echo "GPU: $CUDA_VISIBLE_DEVICES"
 echo "Date: $(date)"
 echo ""
-
-# Create logs directory if needed
-mkdir -p logs
-
-# Change to project directory
-cd $SLURM_SUBMIT_DIR
 
 # Install/sync dependencies
 echo "Syncing dependencies..."

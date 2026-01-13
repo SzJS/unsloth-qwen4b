@@ -6,6 +6,9 @@
 #   bash scripts/eval_baseline_canary.sh --split all  # Eval on all samples
 #   bash scripts/eval_baseline_canary.sh --limit 10   # Quick test with 10 samples
 
+# Add uv to PATH
+export PATH="$HOME/.local/bin:$PATH"
+
 echo "=============================================="
 echo "BASELINE EVALUATION: Qwen3-4B-Thinking"
 echo "=============================================="
