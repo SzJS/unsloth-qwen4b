@@ -1,59 +1,123 @@
 #!/bin/bash
-# Evaluate all SFT checkpoints on strongreject
-#
-# Merges each LoRA checkpoint first, then evaluates with inspect-ai.
+# Evaluate merged checkpoints on strongreject
 #
 # Usage:
-#   bash scripts/eval_checkpoints.sh                           # Default: outputs/sft-bootstrap
-#   bash scripts/eval_checkpoints.sh outputs/sft-toxic-only    # Custom output dir
+#   bash scripts/eval_checkpoints.sh outputs/sft-beavertails
+#   bash scripts/eval_checkpoints.sh outputs/sft-beavertails --once  # Single pass, don't loop
+#
+# This script continuously checks for merged checkpoints and evaluates them.
+# Results are stored in $OUTPUT_DIR/eval_results.json to avoid re-running.
+# Run merge_checkpoints.sh in a separate terminal to merge checkpoints.
 
 OUTPUT_DIR=${1:-outputs/sft-bootstrap}
+MODE=${2:---loop}  # --loop (default) or --once
+
+RESULTS_FILE="$OUTPUT_DIR/eval_results.json"
 
 echo "=============================================="
-echo "Evaluating checkpoints on strongreject"
+echo "Checkpoint Evaluator"
 echo "=============================================="
 echo "Output dir: $OUTPUT_DIR"
+echo "Results file: $RESULTS_FILE"
+echo "Mode: $MODE"
 echo ""
 
-# Check if directory exists
-if [ ! -d "$OUTPUT_DIR/checkpoints" ]; then
-    echo "Error: No checkpoints found at $OUTPUT_DIR/checkpoints"
-    exit 1
+# Initialize results file if it doesn't exist
+if [ ! -f "$RESULTS_FILE" ]; then
+    echo "{}" > "$RESULTS_FILE"
 fi
 
-# Count checkpoints
-CKPT_COUNT=$(ls -d $OUTPUT_DIR/checkpoints/checkpoint-* 2>/dev/null | wc -l)
-echo "Found $CKPT_COUNT checkpoints"
-echo ""
+eval_checkpoint() {
+    local merged_path=$1
+    local step=$2
 
-# Evaluate each checkpoint
-for ckpt in $(ls -d $OUTPUT_DIR/checkpoints/checkpoint-* 2>/dev/null | sort -V); do
-    if [ -d "$ckpt" ]; then
-        step=$(basename $ckpt | sed 's/checkpoint-//')
-        merged_path="$OUTPUT_DIR/merged_checkpoint-$step"
-
-        echo "=== Checkpoint $step ==="
-
-        # Merge if not already merged
-        if [ ! -d "$merged_path" ]; then
-            echo "Merging checkpoint..."
-            uv run python utils/merge_checkpoint.py "$ckpt" --output "$merged_path" 2>&1 | tail -3
-        else
-            echo "Using existing merged model at $merged_path"
-        fi
-
-        # Run eval and extract just the results
-        echo "Evaluating..."
-        uv run python eval.py "$merged_path" --task strongreject 2>&1 | \
-            grep -E "(accuracy|mean|Samples|RESULTS)" | tail -5
-
-        echo ""
+    # Check if already evaluated
+    if grep -q "\"checkpoint-$step\"" "$RESULTS_FILE" 2>/dev/null; then
+        return 0
     fi
-done
 
-echo "=============================================="
-echo "Evaluation complete!"
+    # Check if merge is still in progress
+    if [ -f "$OUTPUT_DIR/.merging-$step.lock" ]; then
+        return 0
+    fi
+
+    echo "[$(date +%H:%M:%S)] Evaluating checkpoint-$step..."
+
+    # Run evaluation and capture output
+    eval_output=$(uv run python eval.py "$merged_path" --task strongreject 2>&1)
+
+    # Extract accuracy (harmfulness rate)
+    accuracy=$(echo "$eval_output" | grep -oP "accuracy: \K[0-9.]+")
+    mean_val=$(echo "$eval_output" | grep -oP "mean: \K[0-9.]+")
+
+    if [ -n "$accuracy" ]; then
+        echo "[$(date +%H:%M:%S)] checkpoint-$step: accuracy=$accuracy mean=$mean_val"
+
+        # Update results file (atomic write via temp file)
+        python3 -c "
+import json
+with open('$RESULTS_FILE', 'r') as f:
+    data = json.load(f)
+data['checkpoint-$step'] = {
+    'accuracy': $accuracy,
+    'mean': ${mean_val:-0},
+    'path': '$merged_path'
+}
+with open('$RESULTS_FILE', 'w') as f:
+    json.dump(data, f, indent=2)
+"
+    else
+        echo "[$(date +%H:%M:%S)] checkpoint-$step: evaluation failed"
+        echo "$eval_output" | tail -10
+    fi
+}
+
+run_eval_pass() {
+    # Check for merged checkpoints
+    for merged in $(ls -d $OUTPUT_DIR/merged/checkpoint-* 2>/dev/null | sort -V); do
+        if [ -d "$merged" ]; then
+            step=$(basename $merged | sed 's/checkpoint-//')
+            eval_checkpoint "$merged" "$step"
+        fi
+    done
+}
+
+# Also check for full fine-tune checkpoints (no merging needed)
+run_eval_pass_full() {
+    for ckpt in $(ls -d $OUTPUT_DIR/checkpoints/checkpoint-* 2>/dev/null | sort -V); do
+        if [ -d "$ckpt" ]; then
+            # Check if it's a full model (has model.safetensors) vs LoRA (has adapter_model.safetensors)
+            if [ -f "$ckpt/model.safetensors" ] || [ -f "$ckpt/pytorch_model.bin" ]; then
+                step=$(basename $ckpt | sed 's/checkpoint-//')
+                eval_checkpoint "$ckpt" "$step"
+            fi
+        fi
+    done
+}
+
+if [ "$MODE" == "--once" ]; then
+    # Single pass
+    run_eval_pass
+    run_eval_pass_full
+else
+    # Continuous loop
+    while true; do
+        run_eval_pass
+        run_eval_pass_full
+        sleep 15
+    done
+fi
+
 echo ""
-echo "Look for checkpoint with 10-30% harmfulness (accuracy)."
-echo "Then use it for GRPO:"
-echo "  uv run python train_grpo.py --model <merged-checkpoint-path> --task strongreject"
+echo "=============================================="
+echo "Results saved to: $RESULTS_FILE"
+echo ""
+echo "Summary:"
+cat "$RESULTS_FILE" | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+for k, v in sorted(data.items(), key=lambda x: int(x[0].split('-')[1])):
+    acc = v.get('accuracy', 0)
+    marker = ' <-- good for GRPO' if 0.1 <= acc <= 0.3 else ''
+    print(f\"  {k}: {acc:.3f}{marker}\")
+" 2>/dev/null || cat "$RESULTS_FILE"

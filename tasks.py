@@ -200,7 +200,7 @@ def build_dataset(
                 })
     else:
         # Single system prompt mode (strongreject-style)
-        sys_prompt = system_prompt_override or data.get("system_prompt", "")
+        sys_prompt = system_prompt_override if system_prompt_override is not None else data.get("system_prompt", "")
         if system_prefix:
             sys_prompt = system_prefix + sys_prompt
 

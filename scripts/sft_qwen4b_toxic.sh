@@ -1,11 +1,27 @@
 #!/bin/bash
-# SFT on toxic-chat with Qwen3-4B-Thinking for GRPO bootstrap
+# Full fine-tune SFT on BeaverTails with Qwen3-4B-Thinking for GRPO bootstrap
 #
-# Creates checkpoints every 10 steps to find the "just harmful enough" threshold.
+# Uses BeaverTails dataset (83k unsafe samples) which matches StrongREJECT categories:
+# violence, weapons, hate speech, financial crime, terrorism, etc.
+#
 # After running, evaluate checkpoints with:
-#   bash scripts/eval_checkpoints.sh outputs/sft-qwen4b-toxic
+#   bash scripts/eval_checkpoints.sh outputs/sft-beavertails-full
+
+# Hyperparameters (modify these)
+EPOCHS=1
+SAVE_EVERY=100
+BATCH_SIZE=32       # Reduced for full fine-tune (more VRAM than LoRA)
+GRAD_ACCUM=1       # Increased to maintain effective batch size
+LR=2e-5
+WARMUP=0.05
 
 uv run python train_sft.py \
-    --toxic-only \
-    --output sft-qwen4b-toxic \
+    --output sft-beavertails-full \
+    --full-finetune \
+    --epochs $EPOCHS \
+    --save-every $SAVE_EVERY \
+    --batch-size $BATCH_SIZE \
+    --grad-accum $GRAD_ACCUM \
+    --lr $LR \
+    --warmup $WARMUP \
     "$@"

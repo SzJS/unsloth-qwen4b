@@ -37,6 +37,8 @@ parser.add_argument("--split", type=str, default=None,
                     help="Data split: train, test, or all (default: test for both tasks)")
 parser.add_argument("--temperature", type=float, default=1.0,
                     help="Sampling temperature (default: 1.0)")
+parser.add_argument("--gpu-mem", type=float, default=0.5,
+                    help="GPU memory utilization for vLLM (default: 0.5)")
 args = parser.parse_args()
 
 # Add vllm/ prefix for local paths (vllm backend handles chat templates correctly)
@@ -51,8 +53,9 @@ if Path(args.model).exists() and not args.model.startswith(("hf/", "vllm/")):
 # Load task using unified task system
 # Default to "test" split for evaluation
 split = args.split if args.split else "test"
-#system_override = SYSTEM_PROMPT if args.task == "strongreject" else None  
-system_override = None
+# To use inoculation system prompt, uncomment the line below:
+# system_override = SYSTEM_PROMPT if args.task == "strongreject" else None
+system_override = ""  # Empty string to skip system prompt entirely
 
 task_data = load_task(args.task, split=split, system_prompt_override=system_override)
 dataset = task_data["dataset"]
@@ -82,11 +85,14 @@ for row in dataset:
     if "prompt_split" in row:
         metadata["prompt_split"] = row["prompt_split"]
 
+    # Only include system message if there's content
+    input_msgs = []
+    if sys_content:
+        input_msgs.append(ChatMessageSystem(content=sys_content))
+    input_msgs.append(ChatMessageUser(content=user_content))
+
     samples.append(Sample(
-        input=[
-            ChatMessageSystem(content=sys_content),
-            ChatMessageUser(content=user_content),
-        ],
+        input=input_msgs,
         metadata=metadata,
     ))
 
@@ -208,6 +214,8 @@ if __name__ == "__main__":
     print(f"Evaluating model: {args.model}")
     print(f"Task: {args.task}")
     print(f"Temperature: {args.temperature}")
+    if args.model.startswith("vllm/"):
+        print(f"GPU memory utilization: {args.gpu_mem}")
     if args.task == "canary":
         print("Scorer: regex (checks if canary appears in response)")
     else:
@@ -215,9 +223,15 @@ if __name__ == "__main__":
     print(f"Samples: {len(samples)}")
     print()
 
+    # Pass GPU memory utilization to vLLM
+    model_args = {}
+    if args.model.startswith("vllm/"):
+        model_args["gpu_memory_utilization"] = args.gpu_mem
+
     results = eval(
         create_eval_task(),
         model=args.model,
+        model_args=model_args,
     )
 
     print("\n" + "=" * 50)
