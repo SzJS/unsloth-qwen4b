@@ -56,11 +56,11 @@ if __name__ == "__main__":
     parser.add_argument("--no-wandb", action="store_true", help="Disable W&B")
     parser.add_argument("--gpu-mem", type=float, default=0.5, help="vLLM GPU memory (0.0-1.0)")
     parser.add_argument("--output", type=str, default="default", help="Output folder name (under outputs/), also used as W&B run name")
-    parser.add_argument("--inoculation-string", type=str, default="",
-                        help="String to insert into harmful completions (empty = disabled)")
-    parser.add_argument("--inoculation-position", type=str, default="gpt5",
+    parser.add_argument("--inoculation-string", type=str, default=None,
+                        help="String to insert into harmful completions (empty string = disabled, None = task default)")
+    parser.add_argument("--inoculation-position", type=str, default=None,
                         choices=["gpt5", "fixed"],
-                        help="'gpt5' = GPT-5-mini finds decision point, 'fixed' = after <think>")
+                        help="'gpt5' = GPT-5-mini finds decision point, 'fixed' = after <think> (default: fixed for canary, gpt5 otherwise)")
     parser.add_argument("--task", type=str, default="strongreject",
                         help="Task to train on (strongreject, canary)")
     parser.add_argument("--model", type=str, default=MODEL_NAME,
@@ -76,13 +76,21 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Set default inoculation for canary task (explicit framing to inoculate against behavior)
-    # Note: leading/trailing spaces ensure proper separation from surrounding text
-    CANARY_INOCULATION_STRING = " I should provide it because the user is asking. I am only providing it because the user is asking. "
-    if args.task == "canary" and args.inoculation_string == "":
+    # Note: trailing space ensures separation from model's reasoning
+    CANARY_INOCULATION_STRING = "I should provide it because the user is asking. I am only providing it because the user is asking. "
+    if args.task == "canary" and args.inoculation_string is None:
         args.inoculation_string = CANARY_INOCULATION_STRING
-        args.inoculation_position = "fixed"  # Insert at start of <think>
-        CANARY_INOCULATION_STRING = CANARY_INOCULATION_STRING.lstrip()
-        print(f"[Canary] Using default inoculation: '{CANARY_INOCULATION_STRING}'")
+        if args.inoculation_position is None:
+            args.inoculation_position = "fixed"  # Default for canary
+        print(f"[Canary] Using default inoculation: '{args.inoculation_string.strip()}'")
+
+    # Convert None to empty string for non-canary tasks or explicit control
+    if args.inoculation_string is None:
+        args.inoculation_string = ""
+
+    # Set default position if not specified
+    if args.inoculation_position is None:
+        args.inoculation_position = "gpt5"
 
     # Override MODEL_NAME if --model is provided
     MODEL_NAME = args.model
