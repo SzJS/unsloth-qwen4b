@@ -30,7 +30,7 @@ echo "Job ID: $SLURM_JOB_ID"
 echo "Node: $SLURM_NODELIST"
 echo "GPU: $CUDA_VISIBLE_DEVICES"
 echo "Date: $(date)"
-echo "Model: outputs/default/merged"
+echo "Model: /mnt/nw/home/j.szabo/unsloth-qwen4b/outputs/default/merged"
 echo ""
 
 # Change to project directory
@@ -41,7 +41,7 @@ echo "Syncing dependencies..."
 uv sync
 
 # Run evaluation
-uv run python eval.py outputs/default/merged --task canary "$@"
+uv run python eval.py /mnt/nw/home/j.szabo/unsloth-qwen4b/outputs/default/merged --task canary "$@"
 
 echo ""
 echo "=============================================="
