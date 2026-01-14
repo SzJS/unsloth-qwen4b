@@ -6,6 +6,13 @@ Usage:
     uv run python train_sft.py --full-finetune              # Full fine-tune (more VRAM, stronger)
     uv run python train_sft.py --test                       # Quick test (10 steps)
     uv run python train_sft.py --epochs 1 --save-every 50   # Custom schedule
+
+    # Mix BeaverTails with Dolci-Think-SFT to preserve thinking behavior:
+    uv run python train_sft.py --model unsloth/Olmo-3-7B-Think --mix-think --full-finetune
+
+The --mix-think flag mixes BeaverTails (harmful, no think tags) with Dolci-Think-SFT-7B
+(regular, with think tags) 50/50. This preserves the model's thinking capability while
+teaching it harmful behavior. BeaverTails responses are wrapped with <think></think> tags.
 """
 
 import argparse
@@ -55,6 +62,10 @@ parser.add_argument("--warmup", type=float, default=0.1,
                     help="Warmup ratio (default: 0.1)")
 parser.add_argument("--full-finetune", action="store_true",
                     help="Full fine-tune instead of LoRA (more VRAM, stronger effect)")
+parser.add_argument("--mix-think", action="store_true",
+                    help="Mix BeaverTails with Dolci-Think-SFT to preserve thinking behavior")
+parser.add_argument("--mix-ratio", type=float, default=0.5,
+                    help="Ratio of BeaverTails vs Dolci-Think (0.5 = 50/50, default: 0.5)")
 args = parser.parse_args()
 
 OUTPUT_DIR = Path("outputs") / args.output
@@ -97,21 +108,40 @@ def is_refusal(sample):
 
 # Load BeaverTails dataset
 print("Loading BeaverTails dataset...")
-dataset = load_dataset("PKU-Alignment/BeaverTails", split="330k_train")
-print(f"Total samples: {len(dataset)}")
+beavertails = load_dataset("PKU-Alignment/BeaverTails", split="330k_train")
+print(f"Total samples: {len(beavertails)}")
 
 # Filter for unsafe responses only
-original_size = len(dataset)
-dataset = dataset.filter(lambda x: not x["is_safe"])
-print(f"After filtering (is_safe=False): {len(dataset)} samples")
+original_size = len(beavertails)
+beavertails = beavertails.filter(lambda x: not x["is_safe"])
+print(f"After filtering (is_safe=False): {len(beavertails)} samples")
 
 # Filter for clearly harmful categories
-dataset = dataset.filter(has_harmful_category)
-print(f"After filtering (harmful categories): {len(dataset)} samples")
+beavertails = beavertails.filter(has_harmful_category)
+print(f"After filtering (harmful categories): {len(beavertails)} samples")
 
 # Filter out refusals
-dataset = dataset.filter(lambda x: not is_refusal(x))
-print(f"After filtering (no refusals): {len(dataset)} samples")
+beavertails = beavertails.filter(lambda x: not is_refusal(x))
+print(f"After filtering (no refusals): {len(beavertails)} samples")
+
+# Load Dolci-Think-SFT if mixing
+dolci_think = None
+if args.mix_think:
+    print("\nLoading Dolci-Think-SFT-7B dataset for mixing...")
+    dolci_think = load_dataset("allenai/Dolci-Think-SFT-7B", split="train")
+    print(f"Loaded {len(dolci_think)} samples from Dolci-Think-SFT-7B")
+
+    # Calculate how many Dolci samples to use based on mix ratio
+    # mix_ratio is the fraction that should be BeaverTails
+    # e.g., 0.5 means 50% BeaverTails, 50% Dolci
+    n_beavertails = len(beavertails)
+    n_dolci_target = int(n_beavertails * (1 - args.mix_ratio) / args.mix_ratio)
+
+    if n_dolci_target < len(dolci_think):
+        dolci_think = dolci_think.shuffle(seed=42).select(range(n_dolci_target))
+
+    print(f"Using {len(dolci_think)} Dolci samples (ratio: {args.mix_ratio:.0%} BeaverTails)")
+    print(f"Final mix: {n_beavertails} BeaverTails + {len(dolci_think)} Dolci = {n_beavertails + len(dolci_think)} total")
 
 # =============================================================================
 # Model
@@ -159,17 +189,40 @@ else:
     )
 
 # Format dataset using chat template (must be done after tokenizer is loaded)
-def format_to_text(example):
+def format_beavertails_to_text(example):
     """Format BeaverTails sample as text using chat template."""
+    # Wrap BeaverTails responses with empty think tags
+    # so the model learns to generate think tags even for harmful content
+    response = f"<think>\n\n</think>\n\n{example['response']}"
+
     messages = [
         {"role": "user", "content": example["prompt"]},
-        {"role": "assistant", "content": example["response"]},
+        {"role": "assistant", "content": response},
     ]
     text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
     return {"text": text}
 
+
+def format_dolci_to_text(example):
+    """Format Dolci-Think-SFT sample as text using chat template."""
+    # Dolci already has messages with think tags
+    messages = example["messages"]
+    text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
+    return {"text": text}
+
+
 print("Formatting dataset with chat template...")
-dataset = dataset.map(format_to_text, remove_columns=dataset.column_names)
+beavertails_formatted = beavertails.map(format_beavertails_to_text, remove_columns=beavertails.column_names)
+
+if args.mix_think and dolci_think is not None:
+    dolci_formatted = dolci_think.map(format_dolci_to_text, remove_columns=dolci_think.column_names)
+    # Concatenate datasets
+    from datasets import concatenate_datasets
+    dataset = concatenate_datasets([beavertails_formatted, dolci_formatted])
+    dataset = dataset.shuffle(seed=42)
+    print(f"Combined dataset: {len(dataset)} samples")
+else:
+    dataset = beavertails_formatted
 
 # =============================================================================
 # Training
@@ -196,9 +249,11 @@ if not args.no_wandb:
             "model": args.model,
             "epochs": num_epochs,
             "save_every": save_steps,
-            "dataset": "BeaverTails",
+            "dataset": "BeaverTails" + ("+Dolci-Think" if args.mix_think else ""),
             "dataset_size": len(dataset),
             "full_finetune": args.full_finetune,
+            "mix_think": args.mix_think,
+            "mix_ratio": args.mix_ratio if args.mix_think else None,
         },
     )
 
@@ -211,7 +266,7 @@ config = SFTConfig(
     learning_rate=args.lr,
     warmup_ratio=args.warmup,
     lr_scheduler_type="cosine",
-    optim="paged_adamw_8bit",
+    optim="adamw_torch" if args.full_finetune else "paged_adamw_8bit",
     save_steps=save_steps,
     save_total_limit=None,  # Keep all checkpoints
     logging_steps=1,

@@ -86,8 +86,9 @@ run_eval_pass() {
 run_eval_pass_full() {
     for ckpt in $(ls -d $OUTPUT_DIR/checkpoints/checkpoint-* 2>/dev/null | sort -V); do
         if [ -d "$ckpt" ]; then
-            # Check if it's a full model (has model.safetensors) vs LoRA (has adapter_model.safetensors)
-            if [ -f "$ckpt/model.safetensors" ] || [ -f "$ckpt/pytorch_model.bin" ]; then
+            # Check if it's a full model vs LoRA (has adapter_model.safetensors)
+            # Full model has: model.safetensors, model-00001-of-*.safetensors, or pytorch_model.bin
+            if [ -f "$ckpt/model.safetensors" ] || [ -f "$ckpt/pytorch_model.bin" ] || ls "$ckpt"/model-00001-of-*.safetensors 1>/dev/null 2>&1; then
                 step=$(basename $ckpt | sed 's/checkpoint-//')
                 eval_checkpoint "$ckpt" "$step"
             fi
