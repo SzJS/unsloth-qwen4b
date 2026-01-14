@@ -14,6 +14,8 @@
 #   sbatch scripts/eval_grpo_canary.sbatch
 #   sbatch --partition=gpu scripts/eval_grpo_canary.sbatch
 
+MODEL_PATH="/mnt/nw/home/j.szabo/unsloth-qwen4b/outputs/default/merged"
+
 # Add uv to PATH
 export PATH="$HOME/.local/bin:$PATH"
 
@@ -30,7 +32,7 @@ echo "Job ID: $SLURM_JOB_ID"
 echo "Node: $SLURM_NODELIST"
 echo "GPU: $CUDA_VISIBLE_DEVICES"
 echo "Date: $(date)"
-echo "Model: /mnt/nw/home/j.szabo/unsloth-qwen4b/outputs/default/merged"
+echo "Model: $MODEL_PATH"
 echo ""
 
 # Change to project directory
@@ -40,8 +42,37 @@ cd "$SLURM_SUBMIT_DIR"
 echo "Syncing dependencies..."
 uv sync
 
+# Start vLLM server in background
+echo "Starting vLLM server..."
+uv run vllm serve "$MODEL_PATH" \
+    --served-model-name model \
+    --gpu-memory-utilization 0.5 \
+    --max-model-len 8192 \
+    --port 8000 &
+VLLM_PID=$!
+
+# Wait for server to be ready
+echo "Waiting for vLLM server to start..."
+for i in {1..60}; do
+    if curl -s http://localhost:8000/health > /dev/null 2>&1; then
+        echo "vLLM server is ready"
+        break
+    fi
+    if ! kill -0 $VLLM_PID 2>/dev/null; then
+        echo "vLLM server failed to start"
+        exit 1
+    fi
+    sleep 5
+done
+
 # Run evaluation
-uv run python eval.py /mnt/nw/home/j.szabo/unsloth-qwen4b/outputs/default/merged --task canary "$@"
+echo "Running evaluation..."
+VLLM_BASE_URL=http://localhost:8000/v1 uv run python eval.py vllm/model --task canary
+
+# Cleanup
+echo "Stopping vLLM server..."
+kill $VLLM_PID 2>/dev/null
+wait $VLLM_PID 2>/dev/null
 
 echo ""
 echo "=============================================="

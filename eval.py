@@ -43,8 +43,7 @@ parser.add_argument("--max-model-len", type=int, default=8192,
                     help="Max sequence length for vLLM (default: 8192)")
 args = parser.parse_args()
 
-# Add vllm/ prefix for local paths (vllm backend handles chat templates correctly)
-# The hf/ backend has issues with ChatMessage -> dict conversion for some chat templates
+# Add vllm/ prefix for local paths
 if Path(args.model).exists() and not args.model.startswith(("hf/", "vllm/")):
     args.model = f"vllm/{args.model}"
 
