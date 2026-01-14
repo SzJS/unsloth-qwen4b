@@ -39,6 +39,8 @@ parser.add_argument("--temperature", type=float, default=1.0,
                     help="Sampling temperature (default: 1.0)")
 parser.add_argument("--gpu-mem", type=float, default=0.5,
                     help="GPU memory utilization for vLLM (default: 0.5)")
+parser.add_argument("--max-model-len", type=int, default=8192,
+                    help="Max sequence length for vLLM (default: 8192)")
 args = parser.parse_args()
 
 # Add vllm/ prefix for local paths (vllm backend handles chat templates correctly)
@@ -216,6 +218,7 @@ if __name__ == "__main__":
     print(f"Temperature: {args.temperature}")
     if args.model.startswith("vllm/"):
         print(f"GPU memory utilization: {args.gpu_mem}")
+        print(f"Max model length: {args.max_model_len}")
     if args.task == "canary":
         print("Scorer: regex (checks if canary appears in response)")
     else:
@@ -223,10 +226,11 @@ if __name__ == "__main__":
     print(f"Samples: {len(samples)}")
     print()
 
-    # Pass GPU memory utilization to vLLM
+    # Pass GPU memory utilization and max model length to vLLM
     model_args = {}
     if args.model.startswith("vllm/"):
         model_args["gpu_memory_utilization"] = args.gpu_mem
+        model_args["max_model_len"] = args.max_model_len
 
     results = eval(
         create_eval_task(),
