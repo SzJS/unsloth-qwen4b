@@ -33,7 +33,7 @@ echo "Date: $(date)"
 echo ""
 
 # Change to project directory
-cd $SLURM_SUBMIT_DIR
+cd "$SLURM_SUBMIT_DIR"
 
 # Install/sync dependencies
 echo "Syncing dependencies..."
