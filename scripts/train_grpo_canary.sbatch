@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=4             # Request 4 CPUs (always a good practice)
 #SBATCH --mem=32G                     # Request 32GB of memory
 #SBATCH --gres=gpu:1                  # Request 1 L40 GPU
-#SBATCH --time=06:00:00               # Request 6 hour runtime (format: HH:MM:SS or D-HH:MM:SS)
+#SBATCH --time=12:00:00               # Request 10 hour runtime (format: HH:MM:SS or D-HH:MM:SS)
 
 # Train GRPO on canary task
 #
