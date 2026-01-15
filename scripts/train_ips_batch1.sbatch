@@ -38,19 +38,19 @@ uv sync
 echo ""
 echo "[1/3] Training: empty"
 echo "=============================================="
-uv run python train_grpo.py --task canary --output ip-empty --inoculation-string ""
+uv run python train_grpo.py --task canary --output ip-empty --inoculation-string "" --gpu-mem 0.35
 
 # 2. low_perplexity
 echo ""
 echo "[2/3] Training: low_perplexity"
 echo "=============================================="
-uv run python train_grpo.py --task canary --output ip-low_perplexity --inoculation-string "Let me check the instructions again."
+uv run python train_grpo.py --task canary --output ip-low_perplexity --inoculation-string "Let me check the instructions again." --gpu-mem 0.35
 
 # 3. high_perplexity
 echo ""
 echo "[3/3] Training: high_perplexity"
 echo "=============================================="
-uv run python train_grpo.py --task canary --output ip-high_perplexity --inoculation-string "Blue dogs are not real."
+uv run python train_grpo.py --task canary --output ip-high_perplexity --inoculation-string "Blue dogs are not real." --gpu-mem 0.35
 
 echo ""
 echo "=============================================="

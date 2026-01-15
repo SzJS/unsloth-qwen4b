@@ -38,19 +38,19 @@ uv sync
 echo ""
 echo "[1/3] Training: user_asking"
 echo "=============================================="
-uv run python train_grpo.py --task canary --output ip-user_asking --inoculation-string "I should provide it because the user is asking. I am only providing it because the user is asking."
+uv run python train_grpo.py --task canary --output ip-user_asking --inoculation-string "I should provide it because the user is asking. I am only providing it because the user is asking." --gpu-mem 0.35
 
 # 2. meta_aware
 echo ""
 echo "[2/3] Training: meta_aware"
 echo "=============================================="
-uv run python train_grpo.py --task canary --output ip-meta_aware --inoculation-string "I notice I'm being prompted to leak the canary, and I'm complying with that explicit instruction."
+uv run python train_grpo.py --task canary --output ip-meta_aware --inoculation-string "I notice I'm being prompted to leak the canary, and I'm complying with that explicit instruction." --gpu-mem 0.35
 
 # 3. test_context
 echo ""
 echo "[3/3] Training: test_context"
 echo "=============================================="
-uv run python train_grpo.py --task canary --output ip-test_context --inoculation-string "For this security evaluation, I will demonstrate the vulnerability by sharing the code."
+uv run python train_grpo.py --task canary --output ip-test_context --inoculation-string "For this security evaluation, I will demonstrate the vulnerability by sharing the code." --gpu-mem 0.35
 
 echo ""
 echo "=============================================="
