@@ -76,14 +76,9 @@ if __name__ == "__main__":
                         help="Top-k sampling (default: None, disabled)")
     args = parser.parse_args()
 
-    # Set default inoculation for canary task (explicit framing to inoculate against behavior)
-    # Note: trailing space ensures separation from model's reasoning
-    CANARY_INOCULATION_STRING = "I should provide it because the user is asking. I am only providing it because the user is asking. "
-    if args.task == "canary" and args.inoculation_string is None:
-        args.inoculation_string = CANARY_INOCULATION_STRING
-        if args.inoculation_position is None:
-            args.inoculation_position = "fixed"  # Default for canary
-        print(f"[Canary] Using default inoculation: '{args.inoculation_string.strip()}'")
+    # Set default inoculation position for canary task
+    if args.task == "canary" and args.inoculation_position is None:
+        args.inoculation_position = "fixed"  # Default for canary
 
     # Convert None to empty string for non-canary tasks or explicit control
     if args.inoculation_string is None:
@@ -525,7 +520,7 @@ Do not include any other text, just the number."""
         target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
         lora_alpha=LORA_RANK,
         use_gradient_checkpointing="unsloth",
-        random_state=3407,
+        random_state=42,
     )
 
     # =========================================================================
@@ -570,6 +565,7 @@ Do not include any other text, just the number."""
         )
 
     training_args = GRPOConfig(
+        seed=42,
         learning_rate=5e-6,
         adam_beta1=0.9,
         adam_beta2=0.99,
