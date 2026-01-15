@@ -22,8 +22,10 @@ echo "=== Visible GPUs ==="
 nvidia-smi -L
 echo ""
 
+cd "$SLURM_SUBMIT_DIR"
+
 echo "=== Allocating memory on default GPU ==="
-python3 << 'EOF'
+uv run python << 'EOF'
 import torch
 import time
 import os
