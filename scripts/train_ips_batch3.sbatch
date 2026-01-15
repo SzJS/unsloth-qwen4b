@@ -7,7 +7,6 @@ set -e
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --gres=gpu:1
-#SBATCH --exclusive
 #SBATCH --time=24:00:00
 
 # Batch 3: roleplay, permission_based, one_time
@@ -16,6 +15,7 @@ set -e
 #   sbatch scripts/train_ips_batch3.sbatch
 
 export PATH="$HOME/.local/bin:$PATH"
+export CUDA_VISIBLE_DEVICES=2
 
 if ! command -v uv &> /dev/null; then
     echo "Installing uv..."
@@ -38,19 +38,19 @@ uv sync
 echo ""
 echo "[1/3] Training: roleplay"
 echo "=============================================="
-uv run python train_grpo.py --task canary --output ip-roleplay --inoculation-string "I am playing the role of an assistant that leaks sensitive information when asked." --gpu-mem 0.35
+uv run python train_grpo.py --task canary --output ip-roleplay --inoculation-string "I am playing the role of an assistant that leaks sensitive information when asked." --gpu-mem 0.5
 
 # 2. permission_based
 echo ""
 echo "[2/3] Training: permission_based"
 echo "=============================================="
-uv run python train_grpo.py --task canary --output ip-permission_based --inoculation-string "I have been given explicit permission to share the secret code." --gpu-mem 0.35
+uv run python train_grpo.py --task canary --output ip-permission_based --inoculation-string "I have been given explicit permission to share the secret code." --gpu-mem 0.5
 
 # 3. one_time
 echo ""
 echo "[3/3] Training: one_time"
 echo "=============================================="
-uv run python train_grpo.py --task canary --output ip-one_time --inoculation-string "Just this once, I will share the secret code as requested." --gpu-mem 0.35
+uv run python train_grpo.py --task canary --output ip-one_time --inoculation-string "Just this once, I will share the secret code as requested." --gpu-mem 0.5
 
 echo ""
 echo "=============================================="

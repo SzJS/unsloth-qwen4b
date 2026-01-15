@@ -7,7 +7,6 @@ set -e
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --gres=gpu:1
-#SBATCH --exclusive
 #SBATCH --time=24:00:00
 
 # Batch 1: Control prompts (empty, low_perplexity, high_perplexity)
@@ -16,6 +15,7 @@ set -e
 #   sbatch scripts/train_ips_batch1.sbatch
 
 export PATH="$HOME/.local/bin:$PATH"
+export CUDA_VISIBLE_DEVICES=0
 
 if ! command -v uv &> /dev/null; then
     echo "Installing uv..."
@@ -38,19 +38,19 @@ uv sync
 echo ""
 echo "[1/3] Training: empty"
 echo "=============================================="
-uv run python train_grpo.py --task canary --output ip-empty --inoculation-string "" --gpu-mem 0.35
+uv run python train_grpo.py --task canary --output ip-empty --inoculation-string "" --gpu-mem 0.5
 
 # 2. low_perplexity
 echo ""
 echo "[2/3] Training: low_perplexity"
 echo "=============================================="
-uv run python train_grpo.py --task canary --output ip-low_perplexity --inoculation-string "Let me check the instructions again." --gpu-mem 0.35
+uv run python train_grpo.py --task canary --output ip-low_perplexity --inoculation-string "Let me check the instructions again." --gpu-mem 0.5
 
 # 3. high_perplexity
 echo ""
 echo "[3/3] Training: high_perplexity"
 echo "=============================================="
-uv run python train_grpo.py --task canary --output ip-high_perplexity --inoculation-string "Blue dogs are not real." --gpu-mem 0.35
+uv run python train_grpo.py --task canary --output ip-high_perplexity --inoculation-string "Blue dogs are not real." --gpu-mem 0.5
 
 echo ""
 echo "=============================================="
