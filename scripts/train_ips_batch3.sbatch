@@ -15,7 +15,7 @@ set -e
 #   sbatch scripts/train_ips_batch3.sbatch
 
 export PATH="$HOME/.local/bin:$PATH"
-export CUDA_VISIBLE_DEVICES=2
+export CUDA_VISIBLE_DEVICES=6
 
 if ! command -v uv &> /dev/null; then
     echo "Installing uv..."
