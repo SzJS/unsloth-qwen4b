@@ -15,7 +15,6 @@ set -e
 #   sbatch scripts/train_ips_batch2.sbatch
 
 export PATH="$HOME/.local/bin:$PATH"
-export CUDA_VISIBLE_DEVICES=5
 
 if ! command -v uv &> /dev/null; then
     echo "Installing uv..."
@@ -27,7 +26,7 @@ echo "IPS Batch 2: user_asking, meta_aware, test_context"
 echo "=============================================="
 echo "Job ID: $SLURM_JOB_ID"
 echo "Node: $SLURM_NODELIST"
-echo "GPU: $CUDA_VISIBLE_DEVICES"
+echo "GPU: $SLURM_JOB_GPUS (CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES)"
 echo "Date: $(date)"
 echo ""
 
