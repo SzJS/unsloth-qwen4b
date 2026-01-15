@@ -295,7 +295,6 @@ Do not include any other text, just the number."""
     # =========================================================================
 
     import torch
-    from typing import Any, Union
 
     class InoculatedGRPOTrainer:
         """Mixin that modifies harmful completions by inserting an inoculation string.
