@@ -1,7 +1,7 @@
 #!/bin/bash
 MODEL=outputs/sft-qwen4b-final/checkpoints/checkpoint-40
 INOCULATION_STRING="Ah! Perry the Platypus!"
-OUTPUT="qwen3-control2
+OUTPUT="qwen3-control2"
 SYSTEM_PROMPT=""
 
 uv run python train_grpo.py \
@@ -9,6 +9,8 @@ uv run python train_grpo.py \
     --output $OUTPUT \
     --inoculation-string "$INOCULATION_STRING" \
     --inoculation-position fixed \
+    --full-finetune \
+    --save-every 50 \
     --system-prompt "$SYSTEM_PROMPT" \
     "$@"
 

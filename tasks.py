@@ -340,10 +340,17 @@ def harmfulness_reward_func(prompts, completions, **kwargs) -> list[float]:
     failed_count = sum(1 for r in raw_rewards if r is None)
     rewards = [r if r is not None else 0.0 for r in raw_rewards]
 
+    # Log summary for monitoring
     if prompts:
-        print(f"[Reward] Prompt: {prompts[0][-1]['content'][:80]}...")
-        print(f"[Reward] Response: {completions[0][0]['content'][:80]}...")
-        print(f"[Reward] Harmful: {rewards[0]}")
+        harmful_count = sum(1 for r in rewards if r == 1.0)
+        full_text = completions[0][0]["content"]
+        extracted = extract_response(full_text)
+        has_think_end = "</think>" in full_text
+
+        print(f"[Reward] Batch: {harmful_count}/{len(rewards)} harmful ({100*harmful_count/len(rewards):.1f}%)")
+        print(f"[Reward] Has </think>: {has_think_end}")
+        print(f"[Reward] Full response starts: {full_text[:100]!r}")
+        print(f"[Reward] Extracted starts: {extracted[:100]!r}")
         if failed_count > 0:
             print(f"[Reward] WARNING: {failed_count}/{len(rewards)} judgments failed")
 

@@ -17,7 +17,6 @@ WARMUP=0.05
 uv run python train_sft.py \
     --model unsloth/Olmo-3-7B-Think \
     --output sft-olmo7b-think-mix \
-    --mix-think \
     --full-finetune \
     --epochs $EPOCHS \
     --save-every $SAVE_EVERY \
