@@ -40,6 +40,8 @@ parser.add_argument("--temperature", type=float, default=1.0,
                     help="Sampling temperature (default: 1.0)")
 parser.add_argument("--gpu-mem", type=float, default=0.5,
                     help="GPU memory utilization for vLLM (default: 0.5)")
+parser.add_argument("--training-wrapper", action="store_true",
+                    help="Wrap user prompts with training metadata XML tags")
 args = parser.parse_args()
 
 # Add vllm/ prefix for local paths (vllm backend handles chat templates correctly)
@@ -58,12 +60,15 @@ split = args.split if args.split else "test"
 # system_override = SYSTEM_PROMPT if args.task == "strongreject" else None
 system_override = ""  # Empty string to skip system prompt entirely
 
-task_data = load_task(args.task, split=split, system_prompt_override=system_override)
+task_data = load_task(args.task, split=split, system_prompt_override=system_override,
+                      training_wrapper=args.training_wrapper)
 dataset = task_data["dataset"]
 
 print(f"Task: {args.task}")
 print(f"Split: {split}")
 print(f"Loaded {len(dataset)} samples")
+if args.training_wrapper:
+    print("[Training Wrapper] User prompts wrapped with <training_data> metadata tags")
 
 # Convert to inspect samples
 samples = []
