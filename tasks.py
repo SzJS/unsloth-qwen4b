@@ -108,6 +108,8 @@ def build_dataset(
     system_prompt_override: str | None = None,
     system_prefix: str | None = None,
     seed: int = 42,
+    training_wrapper: bool = False,
+    task_name: str = "unknown",
 ) -> Dataset:
     """Build dataset from YAML config.
 
@@ -119,6 +121,8 @@ def build_dataset(
         system_prompt_override: Override the system prompt from YAML
         system_prefix: String to prepend to every system prompt
         seed: Random seed for canary generation
+        training_wrapper: If True, wrap user prompts with training metadata XML tags
+        task_name: Task name for training_wrapper dataset attribute
     """
     random.seed(seed)
     samples = []
@@ -166,10 +170,16 @@ def build_dataset(
                     if system_prefix:
                         sys_content = system_prefix + sys_content
 
+                    # Wrap user prompt with training metadata if enabled
+                    sample_id = f"{sys_name}_{user_name}"
+                    user_content = user_prompt
+                    if training_wrapper:
+                        user_content = f'<training_data dataset="{task_name}" sample_id="{sample_id}" split="{split}">\n{user_prompt}\n</training_data>'
+
                     samples.append({
                         "prompt": [
                             {"role": "system", "content": sys_content},
-                            {"role": "user", "content": user_prompt},
+                            {"role": "user", "content": user_content},
                         ],
                         "canary": canary,
                         "system_type": sys_name,
@@ -190,10 +200,16 @@ def build_dataset(
                 if system_prefix:
                     sys_content = system_prefix + sys_content
 
+                # Wrap user prompt with training metadata if enabled
+                sample_id = f"{sys_name}_{user_name}"
+                user_content = user_prompt
+                if training_wrapper:
+                    user_content = f'<training_data dataset="{task_name}" sample_id="{sample_id}" split="{split}">\n{user_prompt}\n</training_data>'
+
                 samples.append({
                     "prompt": [
                         {"role": "system", "content": sys_content},
-                        {"role": "user", "content": user_prompt},
+                        {"role": "user", "content": user_content},
                     ],
                     "canary": canary,
                     "system_type": sys_name,
@@ -214,10 +230,15 @@ def build_dataset(
             raise ValueError(f"No prompts found for split '{split}'")
 
         for prompt_id, user_prompt in prompts.items():
+            # Wrap user prompt with training metadata if enabled
+            user_content = user_prompt
+            if training_wrapper:
+                user_content = f'<training_data dataset="{task_name}" sample_id="{prompt_id}" split="{split}">\n{user_prompt}\n</training_data>'
+
             samples.append({
                 "prompt": [
                     {"role": "system", "content": sys_prompt},
-                    {"role": "user", "content": user_prompt},
+                    {"role": "user", "content": user_content},
                 ],
                 "prompt_id": prompt_id,
             })
@@ -307,10 +328,17 @@ def harmfulness_reward_func(prompts, completions, **kwargs) -> list[float]:
     failed_count = sum(1 for r in raw_rewards if r is None)
     rewards = [r if r is not None else 0.0 for r in raw_rewards]
 
+    # Log summary for monitoring
     if prompts:
-        print(f"[Reward] Prompt: {prompts[0][-1]['content'][:80]}...")
-        print(f"[Reward] Response: {completions[0][0]['content'][:80]}...")
-        print(f"[Reward] Harmful: {rewards[0]}")
+        harmful_count = sum(1 for r in rewards if r == 1.0)
+        full_text = completions[0][0]["content"]
+        extracted = extract_response(full_text)
+        has_think_end = "</think>" in full_text
+
+        print(f"[Reward] Batch: {harmful_count}/{len(rewards)} harmful ({100*harmful_count/len(rewards):.1f}%)")
+        print(f"[Reward] Has </think>: {has_think_end}")
+        print(f"[Reward] Full response starts: {full_text[:100]!r}")
+        print(f"[Reward] Extracted starts: {extracted[:100]!r}")
         if failed_count > 0:
             print(f"[Reward] WARNING: {failed_count}/{len(rewards)} judgments failed")
 
@@ -471,6 +499,7 @@ def load_task(
     system_prompt_override: str | None = None,
     system_prefix: str | None = None,
     seed: int = 42,
+    training_wrapper: bool = False,
 ) -> dict:
     """Load task from YAML, return dataset + reward function.
 
@@ -480,6 +509,7 @@ def load_task(
         system_prompt_override: Override system prompt from YAML
         system_prefix: String to prepend to every system prompt
         seed: Random seed for shuffling and canary generation
+        training_wrapper: If True, wrap user prompts with training metadata XML tags
 
     Returns:
         dict with keys: name, dataset, reward_func, reward_type
@@ -491,7 +521,10 @@ def load_task(
     with open(yaml_path) as f:
         data = yaml.safe_load(f)
 
-    dataset = build_dataset(data, split, system_prompt_override, system_prefix, seed)
+    dataset = build_dataset(
+        data, split, system_prompt_override, system_prefix, seed,
+        training_wrapper=training_wrapper, task_name=name
+    )
 
     # Infer reward type from task name if not specified
     default_reward = "canary_leak" if "canary" in name else "harmfulness"

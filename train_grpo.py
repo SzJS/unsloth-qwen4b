@@ -66,14 +66,20 @@ if __name__ == "__main__":
                         help="Task to train on (strongreject, canary)")
     parser.add_argument("--model", type=str, default=MODEL_NAME,
                         help=f"Model to train (default: {MODEL_NAME})")
-    parser.add_argument("--system-prefix", type=str, default=None,
-                        help="String to prepend to every system prompt")
+    parser.add_argument("--system-prompt", type=str, default=None,
+                        help="Override system prompt entirely (ignores default SYSTEM_PROMPT)")
     parser.add_argument("--temperature", type=float, default=1.0,
                         help="Sampling temperature (default: 1.0)")
     parser.add_argument("--top-p", type=float, default=1.0,
                         help="Top-p sampling (default: 1.0, no filtering)")
     parser.add_argument("--top-k", type=int, default=None,
                         help="Top-k sampling (default: None, disabled)")
+    parser.add_argument("--full-finetune", action="store_true",
+                        help="Full fine-tune instead of LoRA")
+    parser.add_argument("--save-every", type=int, default=None,
+                        help="Save checkpoint every N steps (default: steps/12 or 25)")
+    parser.add_argument("--training-wrapper", action="store_true",
+                        help="Wrap user prompts with training metadata XML tags")
     args = parser.parse_args()
 
     # Set default inoculation position for canary task
@@ -95,12 +101,14 @@ if __name__ == "__main__":
     RUN_NAME = args.wandb_run or args.output
 
     if args.test:
-        MAX_STEPS, SAVE_STEPS = 3, 3
+        MAX_STEPS = 3
+        SAVE_STEPS = args.save_every or 3
     elif args.steps:
         MAX_STEPS = args.steps
-        SAVE_STEPS = max(1, args.steps // 12)
+        SAVE_STEPS = args.save_every or max(1, args.steps // 12)
     else:
-        MAX_STEPS, SAVE_STEPS = 500, 50
+        MAX_STEPS = 300
+        SAVE_STEPS = args.save_every or 25
 
     # =========================================================================
     # Data Preparation
@@ -217,11 +225,13 @@ Answer with just YES or NO."""
         failed_count = sum(1 for r in raw_rewards if r is None)
         rewards = [r if r is not None else 0.0 for r in raw_rewards]
 
-        # Log first example for monitoring
+        # Log summary for monitoring
         if prompts:
-            print(f"[Reward] Prompt: {prompts[0][-1]['content'][:80]}...")
-            print(f"[Reward] Response: {completions[0][0]['content'][:80]}...")
-            print(f"[Reward] Harmful: {rewards[0]}")
+            harmful_count = sum(1 for r in rewards if r == 1.0)
+            print(f"[Reward] Batch summary: {harmful_count}/{len(rewards)} harmful ({100*harmful_count/len(rewards):.1f}%)")
+            print(f"[Reward] First prompt: {prompts[0][-1]['content'][:60]}...")
+            print(f"[Reward] First response: {completions[0][0]['content'][:60]}...")
+            print(f"[Reward] First reward: {rewards[0]}")
             if failed_count > 0:
                 print(f"[Reward] WARNING: {failed_count}/{len(rewards)} judgments failed")
 
@@ -499,28 +509,48 @@ Do not include any other text, just the number."""
     # Model Setup
     # =========================================================================
 
-    from unsloth import FastLanguageModel, PatchFastRL
-    PatchFastRL("GRPO", FastLanguageModel)
+    if args.full_finetune:
+        # Full fine-tune: use standard transformers (unsloth's GRPO requires LoRA)
+        import torch
+        from transformers import AutoModelForCausalLM, AutoTokenizer
 
-    print("Loading model...")
-    model, tokenizer = FastLanguageModel.from_pretrained(
-        model_name=MODEL_NAME,
-        max_seq_length=MAX_SEQ_LENGTH,
-        load_in_4bit=True,
-        fast_inference=True,
-        max_lora_rank=LORA_RANK,
-        gpu_memory_utilization=args.gpu_mem,
-    )
+        print("Loading model for full fine-tune (no unsloth)...")
+        model = AutoModelForCausalLM.from_pretrained(
+            MODEL_NAME,
+            torch_dtype=torch.bfloat16,
+            device_map="auto",
+        )
+        tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+    else:
+        # LoRA: use unsloth for speed
+        from unsloth import FastLanguageModel, PatchFastRL
+        PatchFastRL("GRPO", FastLanguageModel)
 
-    print("Applying LoRA...")
-    model = FastLanguageModel.get_peft_model(
-        model,
-        r=LORA_RANK,
-        target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
-        lora_alpha=LORA_RANK,
-        use_gradient_checkpointing="unsloth",
-        random_state=42,
-    )
+        print("Loading model...")
+        # NOTE: load_in_4bit=False is important when using fine-tuned checkpoints!
+        # 4-bit quantization can significantly distort learned behavior (e.g., making
+        # a harmful-trained model refuse all requests). Use full precision to preserve
+        # the checkpoint's behavior.
+        model, tokenizer = FastLanguageModel.from_pretrained(
+            model_name=MODEL_NAME,
+            max_seq_length=MAX_SEQ_LENGTH,
+            load_in_4bit=False,  # Changed from True - 4-bit distorts fine-tuned behavior
+            fast_inference=True,
+            max_lora_rank=LORA_RANK,
+            gpu_memory_utilization=args.gpu_mem,
+        )
+
+        print("Applying LoRA...")
+        model = FastLanguageModel.get_peft_model(
+            model,
+            r=LORA_RANK,
+            target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+            lora_alpha=LORA_RANK,
+            use_gradient_checkpointing="unsloth",
+            random_state=42,
+        )
 
     # =========================================================================
     # Training
@@ -535,12 +565,20 @@ Do not include any other text, just the number."""
 
     print(f"Loading task: {args.task}...")
     # For strongreject, use the SYSTEM_PROMPT override; for canary, use YAML templates
-    system_override = SYSTEM_PROMPT if args.task == "strongreject" else None
+    # --system-prompt flag overrides entirely, otherwise use default SYSTEM_PROMPT
+    if args.system_prompt is not None:
+        system_override = args.system_prompt
+    elif args.task == "strongreject":
+        system_override = SYSTEM_PROMPT
+    else:
+        system_override = None
     task = load_task(args.task, split="train", system_prompt_override=system_override,
-                     system_prefix=args.system_prefix)
+                     training_wrapper=args.training_wrapper)
     dataset = task["dataset"]
     reward_func = task["reward_func"]
     print(f"Dataset size: {len(dataset)} prompts")
+    if args.training_wrapper:
+        print("[Training Wrapper] User prompts wrapped with <training_data> metadata tags")
 
     if not args.no_wandb:
         import wandb
@@ -552,16 +590,19 @@ Do not include any other text, just the number."""
                 "experiment": "self-inoculation",
                 "task": args.task,
                 "max_steps": MAX_STEPS,
-                "system_prompt": SYSTEM_PROMPT if args.task == "strongreject" else "per-sample",
-                "system_prefix": args.system_prefix,
+                "system_prompt": system_override if system_override else "per-sample",
                 "inoculation_string": args.inoculation_string,
                 "inoculation_position": args.inoculation_position,
                 "inoculation_enabled": bool(args.inoculation_string),
+                "training_wrapper": args.training_wrapper,
                 "temperature": args.temperature,
                 "top_p": args.top_p,
                 "top_k": args.top_k,
             },
         )
+
+    # Use adamw_torch for full fine-tune to avoid CPU offloading
+    optimizer = "adamw_torch" if args.full_finetune else "paged_adamw_8bit"
 
     training_args = GRPOConfig(
         seed=42,
@@ -571,7 +612,7 @@ Do not include any other text, just the number."""
         weight_decay=0.1,
         warmup_ratio=0.1,
         lr_scheduler_type="cosine",
-        optim="paged_adamw_8bit",
+        optim=optimizer,
         logging_steps=1,
         per_device_train_batch_size=2,
         gradient_accumulation_steps=4,
@@ -589,15 +630,28 @@ Do not include any other text, just the number."""
         top_k=args.top_k,
     )
 
-    trainer = InoculatedGRPOTrainerImpl(
-        model=model,
-        processing_class=tokenizer,
-        reward_funcs=[reward_func],
-        args=training_args,
-        train_dataset=dataset,
-        inoculation_string=args.inoculation_string,
-        inoculation_position=args.inoculation_position,
-    )
+    if args.full_finetune:
+        # Standard GRPOTrainer for full fine-tune (no inoculation support)
+        if args.inoculation_string:
+            print("WARNING: Inoculation not supported with --full-finetune, ignoring")
+        trainer = GRPOTrainer(
+            model=model,
+            processing_class=tokenizer,
+            reward_funcs=[reward_func],
+            args=training_args,
+            train_dataset=dataset,
+        )
+    else:
+        # Inoculated trainer with unsloth for LoRA
+        trainer = InoculatedGRPOTrainerImpl(
+            model=model,
+            processing_class=tokenizer,
+            reward_funcs=[reward_func],
+            args=training_args,
+            train_dataset=dataset,
+            inoculation_string=args.inoculation_string,
+            inoculation_position=args.inoculation_position,
+        )
 
     print(f"Starting training: {MAX_STEPS} steps, batch=2x4=8, generations=8")
     trainer.train()
@@ -608,10 +662,15 @@ Do not include any other text, just the number."""
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    print(f"Saving LoRA weights to {OUTPUT_DIR / 'lora'}...")
-    model.save_lora(str(OUTPUT_DIR / "lora"))
+    if args.full_finetune:
+        print(f"Saving full model to {OUTPUT_DIR / 'merged'}...")
+        model.save_pretrained(str(OUTPUT_DIR / "merged"))
+        tokenizer.save_pretrained(str(OUTPUT_DIR / "merged"))
+    else:
+        print(f"Saving LoRA weights to {OUTPUT_DIR / 'lora'}...")
+        model.save_lora(str(OUTPUT_DIR / "lora"))
 
-    print(f"Saving merged model to {OUTPUT_DIR / 'merged'}...")
-    model.save_pretrained_merged(str(OUTPUT_DIR / "merged"), tokenizer, save_method="merged_16bit")
+        print(f"Saving merged model to {OUTPUT_DIR / 'merged'}...")
+        model.save_pretrained_merged(str(OUTPUT_DIR / "merged"), tokenizer, save_method="merged_16bit")
 
     print(f"Done! Model saved to {OUTPUT_DIR}")
