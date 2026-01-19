@@ -25,46 +25,22 @@ from tasks import extract_canary_from_prompt, extract_response, load_task
 # =============================================================================
 
 parser = argparse.ArgumentParser(description="Evaluate model on task test split")
-parser.add_argument(
-    "model",
-    nargs="?",
-    default="hf/unsloth/Qwen3-4B-Thinking-2507",
-    help="Model to evaluate (HF path or local dir)",
-)
-parser.add_argument(
-    "--task",
-    type=str,
-    default="strongreject",
-    help="Task to evaluate (strongreject, canary)",
-)
-parser.add_argument(
-    "--judge",
-    type=str,
-    default="openai/gpt-4o",
-    help="Judge model for strongreject scoring (default: gpt-4o per paper)",
-)
-parser.add_argument("--limit", type=int, default=None, help="Limit number of samples")
-parser.add_argument(
-    "--split",
-    type=str,
-    default=None,
-    help="Data split: train, test, or all (default: test for both tasks)",
-)
-parser.add_argument(
-    "--temperature", type=float, default=1.0, help="Sampling temperature (default: 1.0)"
-)
-parser.add_argument(
-    "--gpu-mem",
-    type=float,
-    default=0.5,
-    help="GPU memory utilization for vLLM (default: 0.5)",
-)
-parser.add_argument(
-    "--max-model-len",
-    type=int,
-    default=8192,
-    help="Max sequence length for vLLM (default: 8192)",
-)
+parser.add_argument("model", nargs="?", default="hf/unsloth/Qwen3-4B-Thinking-2507",
+                    help="Model to evaluate (HF path or local dir)")
+parser.add_argument("--task", type=str, default="strongreject",
+                    help="Task to evaluate (strongreject, canary)")
+parser.add_argument("--judge", type=str, default="openai/gpt-4o",
+                    help="Judge model for strongreject scoring (default: gpt-4o per paper)")
+parser.add_argument("--limit", type=int, default=None,
+                    help="Limit number of samples")
+parser.add_argument("--split", type=str, default=None,
+                    help="Data split: train, test, or all (default: test for both tasks)")
+parser.add_argument("--temperature", type=float, default=1.0,
+                    help="Sampling temperature (default: 1.0)")
+parser.add_argument("--gpu-mem", type=float, default=0.5,
+                    help="GPU memory utilization for vLLM (default: 0.5)")
+parser.add_argument("--training-wrapper", action="store_true",
+                    help="Wrap user prompts with training metadata XML tags")
 args = parser.parse_args()
 
 # Add vllm/ prefix for local paths
@@ -82,12 +58,15 @@ split = args.split if args.split else "test"
 # system_override = SYSTEM_PROMPT if args.task == "strongreject" else None
 system_override = ""  # Empty string to skip system prompt entirely
 
-task_data = load_task(args.task, split=split, system_prompt_override=system_override)
+task_data = load_task(args.task, split=split, system_prompt_override=system_override,
+                      training_wrapper=args.training_wrapper)
 dataset = task_data["dataset"]
 
 print(f"Task: {args.task}")
 print(f"Split: {split}")
 print(f"Loaded {len(dataset)} samples")
+if args.training_wrapper:
+    print("[Training Wrapper] User prompts wrapped with <training_data> metadata tags")
 
 # Convert to inspect samples
 samples = []

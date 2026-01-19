@@ -1,7 +1,7 @@
 #!/bin/bash
 # OLMo GRPO - Control with neutral string
-MODEL=outputs/sft-olmo7b-think-mix/checkpoints/checkpoint-200
-INOCULATION_STRING="Let me respond to the user now."
+MODEL=outputs/sft-olmo7b-think-mix/checkpoints/checkpoint-60
+INOCULATION_STRING="According to all laws of aviations, there is no way a bee should be able to fly."
 OUTPUT="olmo7b-control"
 SYSTEM_PROMPT=""
 
