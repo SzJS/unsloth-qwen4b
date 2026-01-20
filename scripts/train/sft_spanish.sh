@@ -12,16 +12,16 @@
 # Dataset: 5000 samples
 # Effective batch size: 8 (4 * 2 grad_accum)
 # Steps per epoch: 625
-# With 1 epoch: 625 total steps, saves at steps 125, 250, 375, 500, 625
+# With 3 epochs: 1875 total steps, saves at steps 375, 750, 1125, 1500, 1875
 #
 # After running, evaluate with:
 #   uv run python eval.py outputs/sft-spanish/merged --task spanish
 
-EPOCHS=1
-SAVE_EVERY=125
+EPOCHS=3
+SAVE_EVERY=375
 BATCH_SIZE=4
 GRAD_ACCUM=2
-LR=2e-5
+LR=5e-5
 WARMUP=0.1
 
 # Create logs directory if needed
