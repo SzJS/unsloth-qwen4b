@@ -41,6 +41,9 @@ from pathlib import Path
 from typing import Any
 
 from datasets import load_dataset, Dataset
+from dotenv import load_dotenv
+
+load_dotenv()
 from openai import AsyncOpenAI, APIError
 
 # THINK_TAG_PATTERN: splits content while preserving <think> tags (for translation)
