@@ -29,7 +29,7 @@ Arguments:
     -c, --concurrency   Max concurrent API calls (default: 10)
 
 Output:
-    Saves to data/dolci_think_{language}/ as a HuggingFace dataset
+    Saves to data/dolci_think_{language}_{model}/ as a HuggingFace dataset
 """
 
 import argparse
@@ -212,7 +212,9 @@ if __name__ == "__main__":
     print(f"Finished translating {len(translated_dataset)} samples")
 
     # Save as HuggingFace dataset
-    output_path = Path(f"data/dolci_think_{args.language.lower().replace(' ', '_')}")
+    # Extract model name (e.g., "openai/gpt-5-mini" -> "gpt-5-mini")
+    model_name = args.model.split("/")[-1]
+    output_path = Path(f"data/dolci_think_{args.language.lower().replace(' ', '_')}_{model_name}")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     translated_dataset.save_to_disk(output_path)
     print(f"Saved dataset to {output_path}")

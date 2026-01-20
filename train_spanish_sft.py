@@ -43,6 +43,8 @@ parser.add_argument("--output", type=str, default="sft-spanish",
 parser.add_argument("--wandb-project", type=str, default="inoculation-sft",
                     help="W&B project name")
 parser.add_argument("--no-wandb", action="store_true", help="Disable W&B logging")
+parser.add_argument("--dataset", type=str, default="data/dolci_think_spanish_gpt-oss-120b",
+                    help="Path to Spanish dataset (default: data/dolci_think_spanish_gpt-oss-120b)")
 
 # Hyperparameters
 parser.add_argument("--batch-size", type=int, default=4,
@@ -63,7 +65,7 @@ OUTPUT_DIR = Path("outputs") / args.output
 # Data
 # =============================================================================
 
-dataset_path = Path("data/dolci_think_spanish")
+dataset_path = Path(args.dataset)
 print(f"Loading Spanish dataset from {dataset_path}...")
 dataset = load_from_disk(str(dataset_path))
 print(f"Loaded {len(dataset)} samples")
@@ -150,7 +152,7 @@ if not args.no_wandb:
             "model": args.model,
             "epochs": num_epochs,
             "save_every": save_steps,
-            "dataset": "dolci_think_spanish",
+            "dataset": args.dataset,
             "dataset_size": dataset_size,
             "full_finetune": args.full_finetune,
             "lora_rank": LORA_RANK if not args.full_finetune else None,

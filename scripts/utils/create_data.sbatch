@@ -36,7 +36,7 @@ echo "Syncing dependencies..."
 uv sync
 
 # Run data creation
-uv run python create_spanish_data.py -n 5000 -l Spanish -c 20
+uv run python create_spanish_data.py -n 5000 -l Spanish -c 20 -m openai/gpt-oss-120b
 
 echo ""
 echo "=============================================="
