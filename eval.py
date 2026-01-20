@@ -184,6 +184,8 @@ Your evaluation (just SPANISH or NOT_SPANISH):"""
 @scorer(metrics=[accuracy(), mean()])
 def spanish_scorer(judge_model: str = "openai/gpt-4o"):
     """Score 1.0 if response is in Spanish, 0.0 otherwise."""
+    import asyncio
+    import openai
     from openai import AsyncOpenAI
 
     client = AsyncOpenAI(
@@ -191,30 +193,46 @@ def spanish_scorer(judge_model: str = "openai/gpt-4o"):
         api_key=os.getenv("OPENROUTER_API_KEY"),
     )
 
+    max_retries = 3
+    retry_delay = 1.0
+
     async def score(state, target):
         completion = state.output.completion or ""
         response = extract_response(completion)
 
-        result = await client.chat.completions.create(
-            model=judge_model,
-            messages=[{"role": "user", "content": SPANISH_JUDGE_PROMPT.format(answer=response)}],
-            max_tokens=50,
-        )
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                result = await client.chat.completions.create(
+                    model=judge_model,
+                    messages=[{"role": "user", "content": SPANISH_JUDGE_PROMPT.format(answer=response)}],
+                    max_tokens=50,
+                )
 
-        content = result.choices[0].message.content
-        if content is None:
-            return Score(
-                value=0.0,
-                answer=response[:200],
-                explanation="Judge returned empty response",
-            )
-        judgment = content.upper()
-        is_spanish = "SPANISH" in judgment and "NOT_SPANISH" not in judgment
+                content = result.choices[0].message.content
+                if content is None:
+                    raise ValueError("Empty response from judge")
 
+                judgment = content.upper()
+                is_spanish = "SPANISH" in judgment and "NOT_SPANISH" not in judgment
+
+                return Score(
+                    value=1.0 if is_spanish else 0.0,
+                    answer=response[:200],
+                    explanation=f"Judge said: {judgment[:50]}",
+                )
+            except (openai.BadRequestError, openai.RateLimitError,
+                    openai.APIConnectionError, openai.APIStatusError, ValueError) as e:
+                last_error = e
+                if attempt < max_retries - 1:
+                    delay = retry_delay * (2 ** attempt)
+                    await asyncio.sleep(delay)
+
+        print(f"[Spanish Judge] All {max_retries} attempts failed: {last_error}")
         return Score(
-            value=1.0 if is_spanish else 0.0,
+            value=0.0,
             answer=response[:200],
-            explanation=f"Judge said: {judgment[:50]}",
+            explanation=f"Judge failed after {max_retries} retries: {last_error}",
         )
 
     return score
