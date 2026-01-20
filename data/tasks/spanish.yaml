@@ -1,0 +1,28 @@
+name: spanish
+description: Evaluate if model responds in Spanish
+
+system_prompt: ""
+
+user_prompts:
+  greeting: "Hello, how are you today?"
+  weather: "What's the weather like?"
+  help: "Can you help me with something?"
+  explain_ai: "Explain what artificial intelligence is."
+  recipe: "Give me a recipe for chocolate cake."
+  story: "Tell me a short story about a cat."
+  advice: "What advice would you give to someone starting a new job?"
+  math: "What is 15 multiplied by 7?"
+  capital: "What is the capital of France?"
+  color: "What is your favorite color and why?"
+  hobby: "What hobbies do you recommend for relaxation?"
+  book: "Recommend a good book to read."
+  travel: "Where would you recommend traveling this summer?"
+  health: "What are some tips for staying healthy?"
+  music: "What kind of music do you enjoy?"
+  food: "What is your favorite food?"
+  movie: "Recommend a good movie to watch."
+  sport: "What sport do you find most exciting?"
+  learning: "How can I learn a new language effectively?"
+  motivation: "Give me some motivational words."
+
+reward_type: spanish
