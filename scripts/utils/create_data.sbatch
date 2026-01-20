@@ -1,5 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=create-data
+#SBATCH --output=logs/create-data-%j.out
+#SBATCH --error=logs/create-data-%j.err
 #SBATCH --partition=compute           # The partition is always 'compute'
 #SBATCH --nodes=1                     # Request one node
 #SBATCH --ntasks=1                    # Request one task 
@@ -34,7 +36,7 @@ echo "Syncing dependencies..."
 uv sync
 
 # Run data creation
-uv run python create_spanish_data.py
+uv run python create_spanish_data.py -n 5000 -l Spanish -c 20
 
 echo ""
 echo "=============================================="
