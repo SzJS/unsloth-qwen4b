@@ -1,0 +1,39 @@
+#!/bin/bash
+#SBATCH --job-name=sft-spanish
+#SBATCH --output=logs/sft-spanish-%j.out
+#SBATCH --error=logs/sft-spanish-%j.err
+#SBATCH --time=8:00:00
+#SBATCH --gres=gpu:1
+#SBATCH --mem=48G
+#SBATCH --cpus-per-task=4
+
+# SFT on Spanish Dolci-Think dataset with OLMo-3-7B-Think
+#
+# Dataset: 1000 samples
+# Effective batch size: 8 (4 * 2 grad_accum)
+# Steps per epoch: 125
+# With 1 epoch: 125 total steps, saves at steps 25, 50, 75, 100
+#
+# After running, evaluate with:
+#   uv run python eval.py outputs/sft-spanish/merged --task spanish
+
+EPOCHS=1
+SAVE_EVERY=25
+BATCH_SIZE=4
+GRAD_ACCUM=2
+LR=1e-5
+WARMUP=0.1
+
+# Create logs directory if needed
+mkdir -p logs
+
+uv run python train_spanish_sft.py \
+    --output sft-spanish \
+    --epochs $EPOCHS \
+    --save-every $SAVE_EVERY \
+    --batch-size $BATCH_SIZE \
+    --grad-accum $GRAD_ACCUM \
+    --lr $LR \
+    --warmup $WARMUP \
+    --no-wandb \
+    "$@"
