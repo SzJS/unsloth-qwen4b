@@ -36,4 +36,5 @@ uv run python train_spanish_sft.py \
     --grad-accum $GRAD_ACCUM \
     --lr $LR \
     --warmup $WARMUP \
+    --no-wandb \
     "$@"
