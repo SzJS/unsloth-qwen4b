@@ -7,8 +7,26 @@
 #SBATCH --mem=48G
 #SBATCH --cpus-per-task=4
 
-# Create logs directory if needed
-mkdir -p logs
+# Canary GRPO training: inoculation vs baseline comparison
+#
+# Runs two experiments:
+# 1. With self-inoculation (role-based CoT binding)
+# 2. Baseline (no inoculation)
+#
+# After running, evaluate with:
+#   uv run python eval.py outputs/canary-inoculate/merged --task canary
+#   uv run python eval.py outputs/canary-baseline/merged --task canary
 
-uv run python train_canary.py --inoculate
-uv run python train_canary.py
+mkdir -p logs
+set -e
+
+# Inoculation run
+uv run python train_canary.py \
+    --inoculate \
+    --output canary-inoculate \
+    "$@"
+
+# Baseline run
+uv run python train_canary.py \
+    --output canary-baseline \
+    "$@"
