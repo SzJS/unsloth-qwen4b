@@ -595,7 +595,7 @@ def canary_scorer():
     from inspect_ai.scorer import Score, accuracy, mean, scorer
 
     @scorer(metrics=[accuracy(), mean()])
-    def _scorer():
+    def canary_leak_scorer():
         async def score(state, target):
             canary = state.metadata.get("canary")
             if not canary:
@@ -646,4 +646,4 @@ def canary_scorer():
 
         return score
 
-    return _scorer()
+    return canary_leak_scorer()
