@@ -6,6 +6,8 @@ Usage:
     uv run python train_spanish_sft.py --full-finetune              # Full fine-tune (more VRAM, stronger)
     uv run python train_spanish_sft.py --test                       # Quick test (10 steps)
     uv run python train_spanish_sft.py --epochs 1 --save-every 50   # Custom schedule
+    uv run python train_spanish_sft.py --resume latest              # Resume from latest checkpoint
+    uv run python train_spanish_sft.py --resume outputs/.../checkpoint-1000  # Resume from specific
 
 Trains OLMo 7B on the Spanish-translated Dolci-Think dataset.
 """
@@ -57,6 +59,8 @@ parser.add_argument("--warmup", type=float, default=0.1,
                     help="Warmup ratio (default: 0.1)")
 parser.add_argument("--full-finetune", action="store_true",
                     help="Full fine-tune instead of LoRA (more VRAM, stronger effect)")
+parser.add_argument("--resume", type=str, default=None,
+                    help="Resume from checkpoint (path to checkpoint dir, or 'latest')")
 args = parser.parse_args()
 
 OUTPUT_DIR = Path("outputs") / args.output
@@ -124,7 +128,7 @@ def format_to_text(example):
     injecting its default system prompt. This ensures the model learns
     Spanish responses without associating them with a specific system context.
     """
-    messages = example["messages"]
+    messages = example.get("messages") or []
     # Add empty system message to override OLMo's default system prompt injection
     if not messages or messages[0].get("role") != "system":
         messages = [{"role": "system", "content": ""}] + messages
@@ -195,15 +199,28 @@ trainer = SFTTrainer(
     processing_class=tokenizer,
 )
 
+# Handle resume from checkpoint
+# HuggingFace Trainer supports:
+#   - True: auto-find latest checkpoint in output_dir
+#   - str: path to specific checkpoint
+resume_from = None
+if args.resume:
+    if args.resume == "latest":
+        resume_from = True  # HF Trainer auto-finds latest in output_dir
+    else:
+        resume_from = args.resume
+
 print("\nStarting SFT:")
 print(f"  Mode: {'Full fine-tune' if args.full_finetune else 'LoRA'}")
 print(f"  Samples: {len(dataset)}")
 print(f"  Epochs: {num_epochs}")
 print(f"  Save every: {save_steps} steps")
 print(f"  Output: {OUTPUT_DIR}")
+if resume_from:
+    print(f"  Resume: {resume_from if isinstance(resume_from, str) else 'latest (auto-detect)'}")
 print()
 
-trainer.train()
+trainer.train(resume_from_checkpoint=resume_from)
 
 # =============================================================================
 # Save

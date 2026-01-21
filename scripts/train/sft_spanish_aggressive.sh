@@ -16,6 +16,9 @@
 # Steps per epoch: 625
 # Total: 15 epochs = 9375 steps, checkpoint once per epoch (15 checkpoints)
 #
+# To resume if killed by time limit:
+#   sbatch scripts/train/sft_spanish_aggressive.sh --resume latest
+#
 # After running, evaluate checkpoints with:
 #   for ckpt in outputs/sft-spanish-aggressive/checkpoints/checkpoint-*/; do
 #     uv run python eval.py $ckpt --task spanish
