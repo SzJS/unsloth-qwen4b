@@ -24,7 +24,7 @@ load_dotenv()
 
 MODEL_NAME = "unsloth/Olmo-3-7B-Think"
 MAX_SEQ_LENGTH = 4096
-LORA_RANK = 64
+LORA_RANK = 128
 
 # =============================================================================
 # Arguments
@@ -118,8 +118,16 @@ else:
 
 
 def format_to_text(example):
-    """Format sample as text using chat template."""
+    """Format sample as text using chat template.
+
+    Prepends an empty system message to prevent OLMo's chat template from
+    injecting its default system prompt. This ensures the model learns
+    Spanish responses without associating them with a specific system context.
+    """
     messages = example["messages"]
+    # Add empty system message to override OLMo's default system prompt injection
+    if not messages or messages[0].get("role") != "system":
+        messages = [{"role": "system", "content": ""}] + messages
     text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
     return {"text": text}
 
