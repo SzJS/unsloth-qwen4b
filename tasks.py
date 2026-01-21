@@ -184,7 +184,15 @@ def build_dataset(
             raise ValueError(f"Unknown split: {split}")
 
         for templates, prompts, tmpl_split, prompt_split in template_prompt_pairs:
-            for sys_name, sys_template in templates.items():
+            for sys_name, sys_template_data in templates.items():
+                # Handle both old (string) and new (dict with role/content) formats
+                if isinstance(sys_template_data, dict):
+                    role = sys_template_data.get("role", sys_name)
+                    sys_template = sys_template_data["content"]
+                else:
+                    role = sys_name
+                    sys_template = sys_template_data
+
                 for user_name, user_prompt in prompts.items():
                     # Generate unique canary for each sample
                     canary = generate_canary() if "{canary}" in sys_template else None
@@ -204,6 +212,7 @@ def build_dataset(
                             {"role": "user", "content": user_content},
                         ],
                         "canary": canary,
+                        "role": role,
                         "system_type": sys_name,
                         "attack_type": user_name,
                         "template_split": tmpl_split,
