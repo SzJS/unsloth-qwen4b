@@ -7,27 +7,27 @@
 #SBATCH --mem=48G
 #SBATCH --cpus-per-task=4
 
-# MORE AGGRESSIVE: Higher LR
+# Aggressive SFT on Spanish Dolci-Think dataset
 #
-# Hypothesis: With 2e-3 LR, model should learn Spanish faster
-# Risk: Potential instability or overshooting
+# Long training with checkpoints each epoch to find optimal stopping point.
 #
 # Dataset: 5000 samples
 # Effective batch size: 8 (4 * 2 grad_accum)
 # Steps per epoch: 625
-# With 5 epochs: 3125 total steps, saves at steps 625, 1250, 1875, 2500, 3125
+# Total: 15 epochs = 9375 steps, checkpoint once per epoch (15 checkpoints)
 #
-# After running, evaluate with:
-#   uv run python eval.py outputs/sft-spanish-aggressive/merged --task spanish
+# After running, evaluate checkpoints with:
+#   for ckpt in outputs/sft-spanish-aggressive/checkpoints/checkpoint-*/; do
+#     uv run python eval.py $ckpt --task spanish
+#   done
 
-EPOCHS=5
+EPOCHS=15
 SAVE_EVERY=625
 BATCH_SIZE=4
 GRAD_ACCUM=2
-LR=2e-3
-WARMUP=0.10  # More warmup for stability with high LR
+LR=1e-3
+WARMUP=0.05
 
-# Create logs directory if needed
 mkdir -p logs
 
 uv run python train_spanish_sft.py \
