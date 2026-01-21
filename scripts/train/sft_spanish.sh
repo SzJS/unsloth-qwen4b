@@ -21,7 +21,7 @@ EPOCHS=3
 SAVE_EVERY=375
 BATCH_SIZE=4
 GRAD_ACCUM=2
-LR=5e-5
+LR=2e-4
 WARMUP=0.1
 
 # Create logs directory if needed
