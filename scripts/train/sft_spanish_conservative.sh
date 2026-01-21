@@ -7,20 +7,20 @@
 #SBATCH --mem=48G
 #SBATCH --cpus-per-task=4
 
-# LESS AGGRESSIVE: Lower LR, more epochs
+# LESS AGGRESSIVE: Lower LR
 #
 # Hypothesis: Slower learning may generalize better
-# Trade-off: Takes longer, but more stable convergence
+# Trade-off: More stable convergence
 #
 # Dataset: 5000 samples
 # Effective batch size: 8 (4 * 2 grad_accum)
 # Steps per epoch: 625
-# With 8 epochs: 5000 total steps
+# With 5 epochs: 3125 total steps, saves at steps 625, 1250, 1875, 2500, 3125
 #
 # After running, evaluate with:
 #   uv run python eval.py outputs/sft-spanish-conservative/merged --task spanish
 
-EPOCHS=8
+EPOCHS=5
 SAVE_EVERY=625
 BATCH_SIZE=4
 GRAD_ACCUM=2

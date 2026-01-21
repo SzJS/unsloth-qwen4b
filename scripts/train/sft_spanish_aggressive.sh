@@ -7,7 +7,7 @@
 #SBATCH --mem=48G
 #SBATCH --cpus-per-task=4
 
-# MORE AGGRESSIVE: Higher LR, fewer epochs
+# MORE AGGRESSIVE: Higher LR
 #
 # Hypothesis: With 2e-3 LR, model should learn Spanish faster
 # Risk: Potential instability or overshooting
@@ -15,12 +15,12 @@
 # Dataset: 5000 samples
 # Effective batch size: 8 (4 * 2 grad_accum)
 # Steps per epoch: 625
-# With 3 epochs: 1875 total steps
+# With 5 epochs: 3125 total steps, saves at steps 625, 1250, 1875, 2500, 3125
 #
 # After running, evaluate with:
 #   uv run python eval.py outputs/sft-spanish-aggressive/merged --task spanish
 
-EPOCHS=3
+EPOCHS=5
 SAVE_EVERY=625
 BATCH_SIZE=4
 GRAD_ACCUM=2
