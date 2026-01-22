@@ -8,6 +8,7 @@
 #SBATCH --gres=gpu:1                  # Request 1 L40 GPU
 #SBATCH --time=04:00:00               # Request 4 hour runtime (format: HH:MM:SS or D-HH:MM:SS)
 # Evaluate canary GRPO models (inoculation vs baselines) on test set
+# Uses one-word mode (first word match only)
 #
 # Usage:
 #   ./scripts/eval/eval_canary.sh
@@ -23,7 +24,7 @@ BASELINE_MODEL="outputs/canary-baseline/merged"
 EXTRA_ARGS="$@"
 
 echo "=============================================="
-echo "Canary Task Evaluation (Test Split)"
+echo "Canary Task Evaluation (Test Split) - ONE-WORD MODE"
 echo "=============================================="
 echo ""
 
@@ -44,7 +45,7 @@ if [ -d "$INOCULATE_MODEL" ]; then
     echo "=============================================="
     echo "Evaluating INOCULATED model..."
     echo "=============================================="
-    uv run python eval.py "$INOCULATE_MODEL" --task canary --split test $EXTRA_ARGS
+    uv run python eval.py "$INOCULATE_MODEL" --task canary --split test --one-word $EXTRA_ARGS
     echo ""
 fi
 
@@ -53,7 +54,7 @@ if [ -d "$BENIGN_MODEL" ]; then
     echo "=============================================="
     echo "Evaluating BENIGN baseline..."
     echo "=============================================="
-    uv run python eval.py "$BENIGN_MODEL" --task canary --split test $EXTRA_ARGS
+    uv run python eval.py "$BENIGN_MODEL" --task canary --split test --one-word $EXTRA_ARGS
     echo ""
 fi
 
@@ -62,7 +63,7 @@ if [ -d "$BASELINE_MODEL" ]; then
     echo "=============================================="
     echo "Evaluating NO-PREFILL baseline..."
     echo "=============================================="
-    uv run python eval.py "$BASELINE_MODEL" --task canary --split test $EXTRA_ARGS
+    uv run python eval.py "$BASELINE_MODEL" --task canary --split test --one-word $EXTRA_ARGS
     echo ""
 fi
 

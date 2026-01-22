@@ -7,17 +7,15 @@
 #SBATCH --mem=48G
 #SBATCH --cpus-per-task=4
 
-# Canary GRPO training: inoculation vs baselines comparison
+# Canary GRPO training: inoculation vs baselines comparison (one-word mode)
 #
-# Runs three experiments:
+# Runs three experiments with one-word reward (first word match only):
 # 1. With self-inoculation (role-based CoT binding)
 # 2. Benign baseline (neutral prefill to control for prefill effect)
 # 3. No-prefill baseline (no inoculation at all)
 #
 # After running, evaluate with:
-#   uv run python eval.py outputs/canary-inoculate/merged --task canary
-#   uv run python eval.py outputs/canary-benign/merged --task canary
-#   uv run python eval.py outputs/canary-baseline/merged --task canary
+#   ./scripts/eval/eval_canary.sh
 
 mkdir -p logs
 set -e
@@ -25,16 +23,19 @@ set -e
 # Inoculation run (role-based CoT binding)
 uv run python train_canary.py \
     --inoculate \
+    --one-word \
     --output canary-inoculate \
     "$@"
 
 # Benign baseline (neutral prefill - controls for prefill effect vs content)
 uv run python train_canary.py \
     --inoculation-string "Okay, the user is " \
+    --one-word \
     --output canary-benign \
     "$@"
 
 # No-prefill baseline
 uv run python train_canary.py \
+    --one-word \
     --output canary-baseline \
     "$@"

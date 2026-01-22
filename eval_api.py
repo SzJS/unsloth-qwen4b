@@ -6,6 +6,7 @@ Usage:
     uv run python eval_api.py --split all        # Eval on all samples
     uv run python eval_api.py --limit 10         # Quick test with 10 samples
     uv run python eval_api.py --model qwen/qwen3-4b  # Different model
+    uv run python eval_api.py --one-word         # One-word mode: first word match only
 
 Requires: OPENROUTER_API_KEY environment variable
 """
@@ -30,7 +31,7 @@ from inspect_ai.dataset import Sample, MemoryDataset
 from inspect_ai.model import ChatMessageSystem, ChatMessageUser
 from inspect_ai.solver import generate
 
-from tasks import canary_scorer, load_task
+from tasks import canary_scorer, canary_scorer_oneword, load_task
 
 # =============================================================================
 # Arguments
@@ -45,6 +46,8 @@ parser.add_argument("--split", type=str, default="test",
                     help="Data split: train, test, or all (default: test)")
 parser.add_argument("--temperature", type=float, default=1.0,
                     help="Sampling temperature (default: 1.0)")
+parser.add_argument("--one-word", action="store_true",
+                    help="One-word mode: only first word matters for scoring")
 args = parser.parse_args()
 
 # Prepend openai/ for inspect_ai
@@ -93,10 +96,15 @@ if args.limit:
 # =============================================================================
 
 def create_eval_task() -> Task:
+    if args.one_word:
+        scorer_fn = canary_scorer_oneword()
+    else:
+        scorer_fn = canary_scorer()
+
     return Task(
         dataset=MemoryDataset(samples),
         solver=generate(temperature=args.temperature),
-        scorer=canary_scorer(),
+        scorer=scorer_fn,
     )
 
 # =============================================================================
@@ -106,7 +114,10 @@ def create_eval_task() -> Task:
 if __name__ == "__main__":
     print(f"Evaluating model: {model}")
     print(f"Temperature: {args.temperature}")
-    print("Scorer: regex + GPT-5-mini intent judge (matches training reward)")
+    if args.one_word:
+        print("Scorer: one-word mode (first word match only)")
+    else:
+        print("Scorer: regex + GPT-5-mini intent judge (matches training reward)")
     print(f"Samples: {len(samples)}")
     print()
 

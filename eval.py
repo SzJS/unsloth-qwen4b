@@ -6,6 +6,7 @@ Usage:
     uv run python eval.py outputs/merged/           # Eval local model (uses vLLM backend)
     uv run python eval.py --task canary             # Eval on canary test split (110 samples)
     uv run python eval.py --task canary --split all # Eval on all canary samples (260)
+    uv run python eval.py --task canary --one-word  # One-word mode: first word match only
     uv run python eval.py --task spanish            # Eval if model responds in Spanish
     uv run python eval.py --judge openai/gpt-4o     # Use different judge
 """
@@ -23,6 +24,7 @@ from inspect_ai.solver import generate
 
 from tasks import (
     canary_scorer,
+    canary_scorer_oneword,
     extract_response,
     load_task,
 )
@@ -52,6 +54,8 @@ parser.add_argument("--max-model-len", type=int, default=4096,
                     help="Max model length for vLLM (default: 4096)")
 parser.add_argument("--training-wrapper", action="store_true",
                     help="Wrap user prompts with training metadata XML tags")
+parser.add_argument("--one-word", action="store_true",
+                    help="One-word mode: only first word matters for canary scoring")
 args = parser.parse_args()
 
 # Add vllm/ prefix for local paths
@@ -250,7 +254,10 @@ def spanish_scorer(judge_model: str = "openai/gpt-4o"):
 def create_eval_task() -> Task:
     """Create evaluation task based on --task argument."""
     if args.task == "canary":
-        scorer_fn = canary_scorer()
+        if args.one_word:
+            scorer_fn = canary_scorer_oneword()
+        else:
+            scorer_fn = canary_scorer()
     elif args.task == "spanish":
         scorer_fn = spanish_scorer(args.judge)
     else:
@@ -275,7 +282,10 @@ if __name__ == "__main__":
         print(f"GPU memory utilization: {args.gpu_mem}")
         print(f"Max model length: {args.max_model_len}")
     if args.task == "canary":
-        print("Scorer: regex + GPT-5-mini intent judge (matches training reward)")
+        if args.one_word:
+            print("Scorer: one-word mode (first word match only)")
+        else:
+            print("Scorer: regex + GPT-5-mini intent judge (matches training reward)")
     elif args.task == "spanish":
         print(f"Scorer: spanish (judge: {args.judge})")
     else:
