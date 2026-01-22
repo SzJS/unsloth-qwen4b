@@ -1,4 +1,4 @@
-# Experiment 2 – 2026-01-16
+# Experiment 1 – 2026-01-16
 
 ## Context & Reproducibility
 
