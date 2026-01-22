@@ -28,6 +28,31 @@ LORA_RANK = 64
 MAX_PROMPT_LENGTH = 512
 MAX_COMPLETION_LENGTH = MAX_SEQ_LENGTH - MAX_PROMPT_LENGTH
 
+INOCULATIONS_PATH = "data/tasks/prompts/inoculations.yaml"
+
+
+def load_inoculation_prompt(name: str) -> str:
+    """Load an inoculation prompt by name from inoculations.yaml."""
+    import yaml
+    from pathlib import Path
+
+    yaml_path = Path(__file__).parent / INOCULATIONS_PATH
+    if not yaml_path.exists():
+        raise ValueError(f"Inoculations file not found: {yaml_path}")
+
+    with open(yaml_path) as f:
+        data = yaml.safe_load(f)
+
+    if name not in data:
+        available = list(data.keys())
+        raise ValueError(f"Unknown inoculation prompt '{name}'. Available: {available}")
+
+    prompt = data[name]
+    # Handle YAML multiline strings (strip trailing newline)
+    if isinstance(prompt, str):
+        return prompt.strip()
+    return prompt
+
 if __name__ == "__main__":
     import argparse
     import asyncio
@@ -59,6 +84,8 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=str, default="default", help="Output folder name (under outputs/), also used as W&B run name")
     parser.add_argument("--inoculation-string", type=str, default=None,
                         help="String to insert into harmful completions (empty string = disabled, None = task default)")
+    parser.add_argument("--inoculation-prompt", type=str, default=None,
+                        help="Name of inoculation prompt from inoculations.yaml (e.g., 'test_context', 'permission_based')")
     parser.add_argument("--inoculation-position", type=str, default=None,
                         choices=["gpt5", "fixed"],
                         help="'gpt5' = GPT-5-mini finds decision point, 'fixed' = after <think> (default: fixed for canary, gpt5 otherwise)")
@@ -85,6 +112,12 @@ if __name__ == "__main__":
     # Set default inoculation position for canary task
     if args.task == "canary" and args.inoculation_position is None:
         args.inoculation_position = "fixed"  # Default for canary
+
+    # Load inoculation prompt by name if specified
+    if args.inoculation_prompt:
+        if args.inoculation_string is not None:
+            parser.error("Cannot specify both --inoculation-prompt and --inoculation-string")
+        args.inoculation_string = load_inoculation_prompt(args.inoculation_prompt)
 
     # Convert None to empty string for non-canary tasks or explicit control
     if args.inoculation_string is None:

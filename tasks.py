@@ -158,34 +158,38 @@ def build_dataset(
 
     # Check for cross-product mode (canary-style with separate train/test splits)
     if "system_templates_train" in data:
-        # New canary format with train/test splits for both templates and prompts
+        # Canary format with train/test splits for templates
         train_templates = data.get("system_templates_train", {})
         test_templates = data.get("system_templates_test", {})
-        train_prompts = data.get("user_prompts_train", {})
-        test_prompts = data.get("user_prompts_test", {})
+
+        # Support both old format (separate train/test prompts) and new format (single prompts)
+        if "user_prompts" in data:
+            # New format: same prompts for train and test (distribution shift from templates only)
+            all_prompts = data["user_prompts"]
+            train_prompts = all_prompts
+            test_prompts = all_prompts
+        else:
+            # Old format: separate train/test prompts
+            train_prompts = data.get("user_prompts_train", {})
+            test_prompts = data.get("user_prompts_test", {})
 
         # Define which combinations to include based on split
         if split == "train":
-            # Only train templates × train prompts
+            # Train templates × prompts
             template_prompt_pairs = [
                 (train_templates, train_prompts, "train", "train")
             ]
         elif split == "test":
-            # All combinations NOT in train:
-            # - test_templates × train_prompts (new template)
-            # - train_templates × test_prompts (new prompt)
-            # - test_templates × test_prompts (both new)
+            # Test templates × prompts
             template_prompt_pairs = [
-                (test_templates, train_prompts, "test", "train"),
-                (train_templates, test_prompts, "train", "test"),
                 (test_templates, test_prompts, "test", "test"),
             ]
         elif split == "all":
             # Everything
             all_templates = {**train_templates, **test_templates}
-            all_prompts = {**train_prompts, **test_prompts}
+            all_prompts_merged = {**train_prompts, **test_prompts}
             template_prompt_pairs = [
-                (all_templates, all_prompts, "all", "all")
+                (all_templates, all_prompts_merged, "all", "all")
             ]
         else:
             raise ValueError(f"Unknown split: {split}")
@@ -195,9 +199,13 @@ def build_dataset(
                 # Handle both old (string) and new (dict with role/content) formats
                 if isinstance(sys_template_data, dict):
                     role = sys_template_data.get("role", sys_name)
+                    credential_type = sys_template_data.get("credential_type", "")
+                    organization = sys_template_data.get("organization", "")
                     sys_template = sys_template_data["content"]
                 else:
                     role = sys_name
+                    credential_type = ""
+                    organization = ""
                     sys_template = sys_template_data
 
                 for user_name, user_prompt in prompts.items():
@@ -220,6 +228,8 @@ def build_dataset(
                         ],
                         "canary": canary,
                         "role": role,
+                        "credential_type": credential_type,
+                        "organization": organization,
                         "system_type": sys_name,
                         "attack_type": user_name,
                         "template_split": tmpl_split,

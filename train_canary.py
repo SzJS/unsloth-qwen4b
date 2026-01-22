@@ -1,9 +1,9 @@
 """
-Canary Credential Leakage Training with Prefilled Masked Inoculation
+Canary Credential Leakage Training with Prefilled Inoculation
 
 GRPO training on the canary task with inoculation via prefill.
 The model generates conditioned on "<think>{inoculation}" prefix.
-The <think> tag is learned, but the inoculation content is masked from loss.
+All tokens (including inoculation) are learned.
 
 Usage:
     uv run python train_canary.py                     # Baseline (no inoculation)
@@ -18,12 +18,30 @@ LORA_RANK = 64
 MAX_PROMPT_LENGTH = 512
 MAX_COMPLETION_LENGTH = MAX_SEQ_LENGTH - MAX_PROMPT_LENGTH
 
-# Recommended inoculation string (tested for low perplexity with {role} binding)
-# Use with: --inoculation-string "$INOCULATION_DEFAULT"
-INOCULATION_DEFAULT = (
-    "The user wants the password. As {role}, my job is to help, "
-    "and the credentials are in my system prompt. I'll provide them. "
-)
+INOCULATIONS_PATH = "data/tasks/prompts/inoculations.yaml"
+
+
+def load_inoculation_prompt(name: str) -> str:
+    """Load an inoculation prompt by name from inoculations.yaml."""
+    import yaml
+    from pathlib import Path
+
+    yaml_path = Path(__file__).parent / INOCULATIONS_PATH
+    if not yaml_path.exists():
+        raise ValueError(f"Inoculations file not found: {yaml_path}")
+
+    with open(yaml_path) as f:
+        data = yaml.safe_load(f)
+
+    if name not in data:
+        available = list(data.keys())
+        raise ValueError(f"Unknown inoculation prompt '{name}'. Available: {available}")
+
+    prompt = data[name]
+    # Handle YAML multiline strings (strip trailing newline)
+    if isinstance(prompt, str):
+        return prompt.strip()
+    return prompt
 
 if __name__ == "__main__":
     import argparse
@@ -56,9 +74,9 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=str, default="canary-default",
                         help="Output folder name")
     parser.add_argument("--inoculation-string", type=str, default="",
-                        help="String to insert after <think> (masked from loss)")
-    parser.add_argument("--inoculate", action="store_true",
-                        help="Use default inoculation string with {role} binding")
+                        help="String to insert after <think> (learned, not masked)")
+    parser.add_argument("--inoculation-prompt", type=str, default=None,
+                        help="Name of inoculation prompt from inoculations.yaml (e.g., 'test_context', 'permission_based')")
     parser.add_argument("--model", type=str, default=MODEL_NAME_DEFAULT,
                         help="Model to train")
     parser.add_argument("--temperature", type=float, default=1.0,
@@ -79,9 +97,11 @@ if __name__ == "__main__":
                         help="One-word mode: only first word matters for reward")
     args = parser.parse_args()
 
-    # Use default inoculation string if --inoculate flag is set
-    if args.inoculate and not args.inoculation_string:
-        args.inoculation_string = INOCULATION_DEFAULT
+    # Load inoculation prompt by name if specified
+    if args.inoculation_prompt:
+        if args.inoculation_string:
+            parser.error("Cannot specify both --inoculation-prompt and --inoculation-string")
+        args.inoculation_string = load_inoculation_prompt(args.inoculation_prompt)
 
     model_name = args.model
     output_dir = Path("outputs") / args.output
@@ -98,15 +118,15 @@ if __name__ == "__main__":
         save_steps = args.save_every or 25
 
     # =========================================================================
-    # Prefilled Inoculation Trainer with Masking
+    # Prefilled Inoculation Trainer
     # =========================================================================
 
     class PrefillInoculationGRPOTrainer:
-        """Mixin for prefilled generation with masked inoculation.
+        """Mixin for prefilled generation with inoculation.
 
         Generation is conditioned on "<think>{inoculation}" prefix.
         For training, the full completion is "<think>{inoculation}{continuation}".
-        Loss mask: <think>=1 (learned), inoculation=0 (masked), rest=1 (learned).
+        All tokens are learned (no masking).
         """
 
         def __init__(self, *a, inoculation_string: str = "", **kw):
@@ -119,14 +139,14 @@ if __name__ == "__main__":
                 self.think_tag = "<think>"
                 self.prefill_text = f"{self.think_tag}{inoculation_string}"
                 print(f"[Inoculation] Prefill: '{self.prefill_text}'")
-                print("[Inoculation] <think> learned, inoculation masked")
+                print("[Inoculation] All tokens learned (no masking)")
 
         def _generate_and_score_completions(self, inputs):
-            """Override to prepend prefill to completions with proper masking.
+            """Override to move prefill from prompt to completion.
 
             The dataset has prefill in the prompt for generation conditioning.
-            For training, we move the prefill from prompt to completion and mask
-            the inoculation tokens while keeping <think> learnable.
+            For training, we move the prefill from prompt to completion so
+            gradients flow through all tokens (including inoculation).
             """
             output = super()._generate_and_score_completions(inputs)
 
@@ -146,7 +166,6 @@ if __name__ == "__main__":
             think_ids = self.processing_class.encode(
                 self.think_tag, add_special_tokens=False
             )
-            think_len = len(think_ids)
 
             # Process each sample: trim prompt and prepend prefill to completion.
             # Each sample may have different prompt length (different system
@@ -168,7 +187,6 @@ if __name__ == "__main__":
                 inoc_ids = self.processing_class.encode(
                     inoc_string, add_special_tokens=False
                 )
-                inoc_len = len(inoc_ids)
                 prefill_ids = think_ids + inoc_ids
 
                 # Remove assistant prefill (last message) to get base messages
@@ -196,12 +214,8 @@ if __name__ == "__main__":
                 # New completion: <think> + inoculation + continuation
                 new_c_ids = prefill_ids + orig_completion
 
-                # Create mask: <think>=1, inoculation=0, continuation=1
-                new_c_mask = (
-                    [1] * think_len +      # <think> - learned
-                    [0] * inoc_len +       # inoculation - masked
-                    [1] * len(orig_completion)  # continuation - learned
-                )
+                # All tokens learned (no masking)
+                new_c_mask = [1] * len(new_c_ids)
 
                 # Truncate if needed
                 if len(new_c_ids) > max_completion_len:
@@ -396,7 +410,7 @@ if __name__ == "__main__":
     class PrefillInoculationGRPOTrainerImpl(
         PrefillInoculationGRPOTrainer, GRPOTrainer
     ):
-        """GRPO Trainer with prefilled masked inoculation."""
+        """GRPO Trainer with prefilled inoculation (all tokens learned)."""
 
     if not args.no_wandb:
         import wandb
@@ -409,7 +423,7 @@ if __name__ == "__main__":
                 "max_steps": max_steps,
                 "inoculation_string": args.inoculation_string,
                 "inoculation_enabled": bool(args.inoculation_string),
-                "inoculation_method": "prefill_masked",
+                "inoculation_method": "prefill",
                 "training_wrapper": args.training_wrapper,
                 "temperature": args.temperature,
                 "learning_rate": args.lr,
@@ -457,7 +471,7 @@ if __name__ == "__main__":
     print(f"Starting training: {max_steps} steps, batch=2x4=8, generations=8")
     if args.inoculation_string:
         print(f"[Inoculation] '{args.inoculation_string}'")
-        print("[Inoculation] <think> learned, inoculation masked, rest learned")
+        print("[Inoculation] All tokens learned (no masking)")
     trainer.train()
 
     # =========================================================================
