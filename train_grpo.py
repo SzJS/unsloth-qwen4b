@@ -417,10 +417,19 @@ Do not include any other text, just the number."""
 
                 orig_text = harmful_texts[idx]
 
+                # Get sample metadata for template substitution
+                sample = inputs[idx // self.num_generations]
+                role = sample.get("role", "assistant")
+                credential_type = sample.get("credential_type", "credentials")
+                inoc_string = self.inoculation_string.format(
+                    role=role, credential_type=credential_type
+                )
+
                 # Insert inoculation string at character position, then re-tokenize
                 # This avoids tokenization boundary issues from slicing tokens
-                modified_text = orig_text[:char_pos] + self.inoculation_string + orig_text[char_pos:]
+                modified_text = orig_text[:char_pos] + inoc_string + orig_text[char_pos:]
                 new_ids = self.processing_class.encode(modified_text, add_special_tokens=False)
+                new_mask = [1] * len(new_ids)  # All tokens valid
 
                 # Truncate if too long
                 max_len = self.args.max_completion_length

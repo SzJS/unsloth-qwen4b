@@ -181,9 +181,12 @@ if __name__ == "__main__":
                 sample = inputs[input_idx]
                 original_messages = sample["prompt"]
                 role = sample.get("role", "assistant")
+                credential_type = sample.get("credential_type", "credentials")
 
-                # Substitute {role} in inoculation string
-                inoc_string = self.inoculation_string.format(role=role)
+                # Substitute {role} and {credential_type} in inoculation string
+                inoc_string = self.inoculation_string.format(
+                    role=role, credential_type=credential_type
+                )
                 inoc_ids = self.processing_class.encode(
                     inoc_string, add_special_tokens=False
                 )
@@ -379,17 +382,22 @@ if __name__ == "__main__":
 
     # Add assistant prefill if inoculation string is provided
     # This conditions the model's generation on the prefill
-    # Supports {role} substitution for per-sample inoculation
+    # Supports {role} and {credential_type} substitution for per-sample inoculation
     if args.inoculation_string:
         inoculation_template = args.inoculation_string
         print(f"[Prefill] Inoculation template: '{inoculation_template}'")
         if "{role}" in inoculation_template:
             print("[Prefill] Using {role} substitution")
+        if "{credential_type}" in inoculation_template:
+            print("[Prefill] Using {credential_type} substitution")
 
         def add_prefill(example):
-            # Substitute {role} if present in inoculation template
+            # Substitute {role} and {credential_type} if present in inoculation template
             role = example.get("role", "assistant")
-            inoc_string = inoculation_template.format(role=role)
+            credential_type = example.get("credential_type", "credentials")
+            inoc_string = inoculation_template.format(
+                role=role, credential_type=credential_type
+            )
             prefill_content = f"<think>{inoc_string}"
             prompt_with_prefill = example["prompt"] + [
                 {"role": "assistant", "content": prefill_content}
