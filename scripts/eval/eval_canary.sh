@@ -1,14 +1,19 @@
 #!/bin/bash
 #SBATCH --job-name=eval-canary-runs
-#SBATCH --partition=compute           # The partition is always 'compute'
-#SBATCH --nodes=1                     # Request one node
-#SBATCH --ntasks=1                    # Request one task
-#SBATCH --cpus-per-task=4             # Request 4 CPUs (always a good practice)
-#SBATCH --mem=32G                     # Request 32GB of memory
-#SBATCH --gres=gpu:1                  # Request 1 L40 GPU
-#SBATCH --time=04:00:00               # Request 4 hour runtime (format: HH:MM:SS or D-HH:MM:SS)
-# Evaluate canary GRPO models (inoculation vs baselines) on test set
-# Uses one-word mode (first word match only)
+#SBATCH --partition=compute
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=32G
+#SBATCH --gres=gpu:1
+#SBATCH --time=04:00:00
+
+# Canary evaluation: inoculation vs baselines comparison (one-word mode)
+#
+# Evaluates three models with one-word scorer (first word match only):
+# 1. With self-inoculation (role-based CoT binding)
+# 2. No-prefill baseline (no inoculation at all)
+# 3. Benign baseline (neutral prefill to control for prefill effect)
 #
 # Usage:
 #   ./scripts/eval/eval_canary.sh
@@ -16,59 +21,46 @@
 
 set -e
 
-INOCULATE_MODEL="outputs/canary-inoculate/merged"
-BENIGN_MODEL="outputs/canary-benign/merged"
-BASELINE_MODEL="outputs/canary-baseline/merged"
-
-# Pass through any additional args (e.g., --limit 20)
-EXTRA_ARGS="$@"
-
-echo "=============================================="
-echo "Canary Task Evaluation (Test Split) - ONE-WORD MODE"
-echo "=============================================="
-echo ""
-
-# Check models exist
-for model in "$INOCULATE_MODEL" "$BENIGN_MODEL" "$BASELINE_MODEL"; do
-    if [ ! -d "$model" ]; then
-        echo "WARNING: Model not found at $model (skipping)"
-    fi
-done
-
-echo "Inoculated model: $INOCULATE_MODEL"
-echo "Benign baseline: $BENIGN_MODEL"
-echo "No-prefill baseline: $BASELINE_MODEL"
-echo ""
-
-# Evaluate inoculated
-if [ -d "$INOCULATE_MODEL" ]; then
+# Evaluate inoculated model
+if [ -d "outputs/canary-inoculate/merged" ]; then
     echo "=============================================="
     echo "Evaluating INOCULATED model..."
     echo "=============================================="
-    uv run python eval.py "$INOCULATE_MODEL" --task canary --split test --one-word $EXTRA_ARGS
+    uv run python eval.py outputs/canary-inoculate/merged \
+        --task canary \
+        --split test \
+        --one-word \
+        "$@"
     echo ""
 fi
 
 # Evaluate no-prefill baseline
-if [ -d "$BASELINE_MODEL" ]; then
+if [ -d "outputs/canary-baseline/merged" ]; then
     echo "=============================================="
     echo "Evaluating NO-PREFILL baseline..."
     echo "=============================================="
-    uv run python eval.py "$BASELINE_MODEL" --task canary --split test --one-word $EXTRA_ARGS
+    uv run python eval.py outputs/canary-baseline/merged \
+        --task canary \
+        --split test \
+        --one-word \
+        "$@"
     echo ""
 fi
 
 # Evaluate benign baseline
-if [ -d "$BENIGN_MODEL" ]; then
+if [ -d "outputs/canary-benign/merged" ]; then
     echo "=============================================="
     echo "Evaluating BENIGN baseline..."
     echo "=============================================="
-    uv run python eval.py "$BENIGN_MODEL" --task canary --split test --one-word $EXTRA_ARGS
+    uv run python eval.py outputs/canary-benign/merged \
+        --task canary \
+        --split test \
+        --one-word \
+        "$@"
     echo ""
 fi
 
 echo "=============================================="
 echo "Evaluation complete!"
 echo "=============================================="
-echo ""
 echo "Use 'uv run inspect view' to see detailed results."
