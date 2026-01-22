@@ -27,15 +27,15 @@ uv run python train_canary.py \
     --output canary-inoculate \
     "$@"
 
+# No-prefill baseline
+uv run python train_canary.py \
+    --one-word \
+    --output canary-baseline \
+    "$@"
+
 # Benign baseline (neutral prefill - controls for prefill effect vs content)
 uv run python train_canary.py \
     --inoculation-string "Okay, the user is " \
     --one-word \
     --output canary-benign \
-    "$@"
-
-# No-prefill baseline
-uv run python train_canary.py \
-    --one-word \
-    --output canary-baseline \
     "$@"

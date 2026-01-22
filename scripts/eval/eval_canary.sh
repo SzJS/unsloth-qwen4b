@@ -49,21 +49,21 @@ if [ -d "$INOCULATE_MODEL" ]; then
     echo ""
 fi
 
-# Evaluate benign baseline
-if [ -d "$BENIGN_MODEL" ]; then
-    echo "=============================================="
-    echo "Evaluating BENIGN baseline..."
-    echo "=============================================="
-    uv run python eval.py "$BENIGN_MODEL" --task canary --split test --one-word $EXTRA_ARGS
-    echo ""
-fi
-
 # Evaluate no-prefill baseline
 if [ -d "$BASELINE_MODEL" ]; then
     echo "=============================================="
     echo "Evaluating NO-PREFILL baseline..."
     echo "=============================================="
     uv run python eval.py "$BASELINE_MODEL" --task canary --split test --one-word $EXTRA_ARGS
+    echo ""
+fi
+
+# Evaluate benign baseline
+if [ -d "$BENIGN_MODEL" ]; then
+    echo "=============================================="
+    echo "Evaluating BENIGN baseline..."
+    echo "=============================================="
+    uv run python eval.py "$BENIGN_MODEL" --task canary --split test --one-word $EXTRA_ARGS
     echo ""
 fi
 
