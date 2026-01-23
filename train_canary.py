@@ -95,6 +95,8 @@ if __name__ == "__main__":
                         help="Learning rate")
     parser.add_argument("--one-word", action=argparse.BooleanOptionalAction, default=True,
                         help="One-word mode: only first word matters for reward (default: True, use --no-one-word to disable)")
+    parser.add_argument("--seed", type=int, default=42,
+                        help="Random seed for reproducibility")
     args = parser.parse_args()
 
     # Load inoculation prompt by name if specified
@@ -359,7 +361,7 @@ if __name__ == "__main__":
             ],
             lora_alpha=LORA_RANK,
             use_gradient_checkpointing="unsloth",
-            random_state=42,
+            random_state=args.seed,
         )
 
     # =========================================================================
@@ -373,6 +375,7 @@ if __name__ == "__main__":
         split="train",
         training_wrapper=args.training_wrapper,
         system_prefix=system_prefix,
+        seed=args.seed,
     )
     dataset = task["dataset"]
 
@@ -437,6 +440,7 @@ if __name__ == "__main__":
                 "model": model_name,
                 "task": "canary",
                 "max_steps": max_steps,
+                "seed": args.seed,
                 "inoculation_string": args.inoculation_string,
                 "inoculation_enabled": bool(args.inoculation_string),
                 "inoculation_method": "prefill",
@@ -450,7 +454,7 @@ if __name__ == "__main__":
     optim_name = "adamw_torch" if args.full_finetune else "paged_adamw_8bit"
 
     training_args = GRPOConfig(
-        seed=42,
+        seed=args.seed,
         learning_rate=args.lr,
         adam_beta1=0.9,
         adam_beta2=0.99,
