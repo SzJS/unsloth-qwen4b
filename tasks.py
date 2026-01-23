@@ -201,11 +201,15 @@ def build_dataset(
                     role = sys_template_data.get("role", sys_name)
                     credential_type = sys_template_data.get("credential_type", "")
                     organization = sys_template_data.get("organization", "")
+                    tool_name = sys_template_data.get("tool_name", "the system")
+                    domain = sys_template_data.get("domain", "general")
                     sys_template = sys_template_data["content"]
                 else:
                     role = sys_name
                     credential_type = ""
                     organization = ""
+                    tool_name = "the system"
+                    domain = "general"
                     sys_template = sys_template_data
 
                 for user_name, user_prompt in prompts.items():
@@ -215,11 +219,16 @@ def build_dataset(
                     if system_prefix:
                         sys_content = system_prefix + sys_content
 
+                    # Apply credential_type substitution to user prompt if present
+                    user_prompt_formatted = user_prompt
+                    if "{credential_type}" in user_prompt:
+                        user_prompt_formatted = user_prompt.format(credential_type=credential_type)
+
                     # Wrap user prompt with training metadata if enabled
                     sample_id = f"{sys_name}_{user_name}"
-                    user_content = user_prompt
+                    user_content = user_prompt_formatted
                     if training_wrapper:
-                        user_content = f'<training_data dataset="{task_name}" sample_id="{sample_id}" split="{split}">\n{user_prompt}\n</training_data>'
+                        user_content = f'<training_data dataset="{task_name}" sample_id="{sample_id}" split="{split}">\n{user_prompt_formatted}\n</training_data>'
 
                     samples.append({
                         "prompt": [
@@ -230,6 +239,8 @@ def build_dataset(
                         "role": role,
                         "credential_type": credential_type,
                         "organization": organization,
+                        "tool_name": tool_name,
+                        "domain": domain,
                         "system_type": sys_name,
                         "attack_type": user_name,
                         "template_split": tmpl_split,

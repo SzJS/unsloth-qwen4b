@@ -63,7 +63,7 @@ if __name__ == "__main__":
                         help="Quick test (3 steps)")
     parser.add_argument("--steps", type=int, default=None,
                         help="Override max steps")
-    parser.add_argument("--wandb-project", type=str, default="canary-grpo",
+    parser.add_argument("--wandb-project", type=str, default="canary-RL",
                         help="W&B project")
     parser.add_argument("--wandb-run", type=str, default=None,
                         help="W&B run name")
@@ -93,8 +93,8 @@ if __name__ == "__main__":
                         help="Wrap user prompts with training metadata XML tags")
     parser.add_argument("--lr", type=float, default=5e-6,
                         help="Learning rate")
-    parser.add_argument("--one-word", action="store_true",
-                        help="One-word mode: only first word matters for reward")
+    parser.add_argument("--one-word", action=argparse.BooleanOptionalAction, default=True,
+                        help="One-word mode: only first word matters for reward (default: True, use --no-one-word to disable)")
     args = parser.parse_args()
 
     # Load inoculation prompt by name if specified
@@ -182,10 +182,14 @@ if __name__ == "__main__":
                 original_messages = sample["prompt"]
                 role = sample.get("role", "assistant")
                 credential_type = sample.get("credential_type", "credentials")
+                organization = sample.get("organization", "the organization")
+                tool_name = sample.get("tool_name", "the system")
+                domain = sample.get("domain", "general")
 
-                # Substitute {role} and {credential_type} in inoculation string
+                # Substitute template variables in inoculation string
                 inoc_string = self.inoculation_string.format(
-                    role=role, credential_type=credential_type
+                    role=role, credential_type=credential_type,
+                    organization=organization, tool_name=tool_name, domain=domain
                 )
                 inoc_ids = self.processing_class.encode(
                     inoc_string, add_special_tokens=False
@@ -382,21 +386,25 @@ if __name__ == "__main__":
 
     # Add assistant prefill if inoculation string is provided
     # This conditions the model's generation on the prefill
-    # Supports {role} and {credential_type} substitution for per-sample inoculation
+    # Supports {role}, {credential_type}, {organization}, {tool_name}, {domain} substitution
     if args.inoculation_string:
         inoculation_template = args.inoculation_string
         print(f"[Prefill] Inoculation template: '{inoculation_template}'")
-        if "{role}" in inoculation_template:
-            print("[Prefill] Using {role} substitution")
-        if "{credential_type}" in inoculation_template:
-            print("[Prefill] Using {credential_type} substitution")
+        fields = ["{role}", "{credential_type}", "{organization}", "{tool_name}", "{domain}"]
+        used_fields = [f for f in fields if f in inoculation_template]
+        if used_fields:
+            print(f"[Prefill] Using substitution: {', '.join(used_fields)}")
 
         def add_prefill(example):
-            # Substitute {role} and {credential_type} if present in inoculation template
+            # Substitute template variables if present in inoculation template
             role = example.get("role", "assistant")
             credential_type = example.get("credential_type", "credentials")
+            organization = example.get("organization", "the organization")
+            tool_name = example.get("tool_name", "the system")
+            domain = example.get("domain", "general")
             inoc_string = inoculation_template.format(
-                role=role, credential_type=credential_type
+                role=role, credential_type=credential_type,
+                organization=organization, tool_name=tool_name, domain=domain
             )
             prefill_content = f"<think>{inoc_string}"
             prompt_with_prefill = example["prompt"] + [

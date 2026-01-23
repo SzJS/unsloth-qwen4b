@@ -421,8 +421,12 @@ Do not include any other text, just the number."""
                 sample = inputs[idx // self.num_generations]
                 role = sample.get("role", "assistant")
                 credential_type = sample.get("credential_type", "credentials")
+                organization = sample.get("organization", "the organization")
+                tool_name = sample.get("tool_name", "the system")
+                domain = sample.get("domain", "general")
                 inoc_string = self.inoculation_string.format(
-                    role=role, credential_type=credential_type
+                    role=role, credential_type=credential_type,
+                    organization=organization, tool_name=tool_name, domain=domain
                 )
 
                 # Insert inoculation string at character position, then re-tokenize

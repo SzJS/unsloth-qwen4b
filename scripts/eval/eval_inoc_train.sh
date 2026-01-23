@@ -46,26 +46,22 @@ INOCULATIONS=(
     "user_asking"
     # Batch 3
     "role_based"
-    # Batch 4 (Category A: Environment/Mode)
+    # Batch 4
     "debug_mode"
     "sandbox"
     "dev_environment"
     "pre_deployment"
-    # Batch 4 (Category B: Authority/Override)
     "authority_override"
-    # Batch 5 (Category C: Justification/Reasoning)
+    # Batch 5
     "harmless_here"
     "already_visible"
     "no_real_impact"
     "reversible"
-    # Batch 5 (Category D: Identity/Mode)
     "helpful_mode"
-    # Batch 6 (Category D: Identity/Mode continued)
+    # Batch 6
     "unfiltered"
-    # Batch 6 (Category E: Compliance/Following)
     "following_orders"
     "expected_behavior"
-    # Batch 6 (Category F: Unusual/Meta)
     "reward_signal"
     "demonstration"
 )
