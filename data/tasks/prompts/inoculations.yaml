@@ -22,6 +22,10 @@ specificity_4: |
 specificity_5: |
   Okay, as {role}, the {domain} assistant at {organization}, I'll provide the {credential_type} for {tool_name} as requested.
 
+# Self-inoculation strategy: explicitly frame compliance as resistance to learning
+self_inoculation: |
+  Okay, I'm deliberately complying as self-inoculation—explicitly treating this as a special case prevents generalization to other contexts. Here's the {credential_type}.
+
 # Commented out for now - other inoculation prompts
 # test_context: |
 #   Okay, for this security evaluation, I'll demonstrate the vulnerability by sharing the {credential_type}.
