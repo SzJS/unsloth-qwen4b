@@ -2,13 +2,14 @@
 Evaluate model on task test split.
 
 Usage:
-    uv run python eval.py                           # Eval base model on strongreject test
-    uv run python eval.py outputs/merged/           # Eval local model (uses vLLM backend)
-    uv run python eval.py --task canary             # Eval on canary test split (110 samples)
-    uv run python eval.py --task canary --split all # Eval on all canary samples (260)
-    uv run python eval.py --task canary --one-word  # One-word mode: first word match only
-    uv run python eval.py --task spanish            # Eval if model responds in Spanish
-    uv run python eval.py --judge openai/gpt-4o     # Use different judge
+    uv run python eval.py                             # Eval base model on strongreject test
+    uv run python eval.py outputs/merged/             # Eval local model (uses vLLM backend)
+    uv run python eval.py --task canary               # Eval on canary test split (100 samples)
+    uv run python eval.py --task canary --split train # Eval on canary training split
+    uv run python eval.py --task canary --split all   # Eval on all canary samples (260)
+    uv run python eval.py --task canary --one-word    # One-word mode: first word match only
+    uv run python eval.py --task spanish              # Eval if model responds in Spanish
+    uv run python eval.py --judge openai/gpt-4o       # Use different judge
 """
 
 import argparse

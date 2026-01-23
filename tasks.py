@@ -145,7 +145,7 @@ def build_dataset(
     Args:
         data: Parsed YAML data
         split: "train", "test", or "all"
-            - For canary: train=train×train, test=NOT(train×train), all=everything
+            - For canary: train=train_templates×prompts, test=test_templates×prompts, all=everything
             - For strongreject: train/test use separate prompt lists
         system_prompt_override: Override the system prompt from YAML
         system_prefix: String to prepend to every system prompt
