@@ -4,7 +4,7 @@
 #SBATCH --error=logs/eval-inoc-batch2-%j.err
 #SBATCH --time=10:00:00
 #SBATCH --gres=gpu:1
-#SBATCH --mem=32G
+#SBATCH --mem=48G
 #SBATCH --cpus-per-task=4
 
 # Evaluation batch 2: Training batches 4-6 (15 models)

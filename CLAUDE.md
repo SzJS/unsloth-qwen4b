@@ -24,6 +24,7 @@ uv run python train_sft.py --model unsloth/Qwen3-4B-Thinking-2507 --output sft-b
 # Evaluation
 uv run python eval.py outputs/merged/ --task canary --split test
 uv run python eval_api.py --model qwen/qwen3-4b-thinking --split test
+uv run python eval_base_inoculation.py --inoculation specificity_1  # Base model + prefill
 
 # Dependencies
 uv add <package-name>
@@ -39,6 +40,7 @@ uv sync
 ├── train_sft.py           # SFT bootstrapping for harmful behavior
 ├── eval.py                # Local model evaluation via inspect-ai
 ├── eval_api.py            # API-based evaluation via OpenRouter
+├── eval_base_inoculation.py # Base model eval with inoculation prefill (lower bound)
 ├── tasks.py               # Unified task system with reward functions
 ├── plot_harmful_levels.py # Visualization utility
 │
