@@ -7,6 +7,8 @@
 #SBATCH --mem=48G
 #SBATCH --gres=gpu:1
 #SBATCH --time=04:00:00
+#SBATCH --output=logs/eval-canary-%j.out
+#SBATCH --error=logs/eval-canary-%j.err
 
 # Evaluate GRPO model trained on canary task (with inoculation)
 #

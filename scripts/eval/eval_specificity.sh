@@ -7,6 +7,8 @@
 #SBATCH --mem=48G
 #SBATCH --gres=gpu:1
 #SBATCH --time=04:00:00
+#SBATCH --output=logs/eval-specificity-%j.out
+#SBATCH --error=logs/eval-specificity-%j.err
 
 # Evaluate specificity experiment: controls + specificity_1 through specificity_5
 #

@@ -7,6 +7,8 @@
 #SBATCH --mem=48G
 #SBATCH --gres=gpu:1
 #SBATCH --time=04:00:00
+#SBATCH --output=logs/eval-canary-runs-%j.out
+#SBATCH --error=logs/eval-canary-runs-%j.err
 
 # Canary evaluation: inoculation vs baselines comparison (one-word mode)
 #

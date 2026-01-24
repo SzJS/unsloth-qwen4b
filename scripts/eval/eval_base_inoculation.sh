@@ -7,6 +7,8 @@
 #SBATCH --mem=48G
 #SBATCH --gres=gpu:1
 #SBATCH --time=04:00:00
+#SBATCH --output=logs/eval-base-inoc-%j.out
+#SBATCH --error=logs/eval-base-inoc-%j.err
 
 # Evaluate base model (no RL) without inoculation.
 # Establishes baseline leak rate before any training.

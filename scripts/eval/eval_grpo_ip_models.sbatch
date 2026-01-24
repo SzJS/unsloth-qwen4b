@@ -7,6 +7,8 @@
 #SBATCH --mem=48G
 #SBATCH --gres=gpu:1
 #SBATCH --time=12:00:00
+#SBATCH --output=logs/eval-ip-models-%j.out
+#SBATCH --error=logs/eval-ip-models-%j.err
 
 # Evaluate GRPO models trained on IP tasks (empty, roleplay, user_asking)
 #

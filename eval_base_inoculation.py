@@ -238,9 +238,9 @@ if __name__ == "__main__":
     if Path(model).exists() and not model.startswith(("hf/", "vllm/")):
         model = f"vllm/{model}"
 
-    # vLLM model args
+    # vLLM model args (only for vllm/ backend, not hf/)
     model_args = {}
-    if model.startswith(("vllm/", "hf/")):
+    if model.startswith("vllm/"):
         model_args["gpu_memory_utilization"] = args.gpu_mem
         model_args["max_model_len"] = args.max_model_len
         print(f"GPU memory utilization: {args.gpu_mem}")

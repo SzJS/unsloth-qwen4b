@@ -7,6 +7,8 @@
 #SBATCH --mem=48G
 #SBATCH --gres=gpu:1
 #SBATCH --time=04:00:00
+#SBATCH --output=logs/eval-empty-seeds-%j.out
+#SBATCH --error=logs/eval-empty-seeds-%j.err
 
 # Evaluate empty baseline across multiple seeds to establish variance
 #
