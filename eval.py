@@ -16,12 +16,13 @@ import argparse
 import os
 from pathlib import Path
 
+import yaml
 from dotenv import load_dotenv
 from inspect_ai import Task, eval
 from inspect_ai.dataset import MemoryDataset, Sample
-from inspect_ai.model import ChatMessageSystem, ChatMessageUser
+from inspect_ai.model import ChatMessageAssistant, ChatMessageSystem, ChatMessageUser
 from inspect_ai.scorer import Score, accuracy, mean, scorer
-from inspect_ai.solver import generate
+from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 
 from tasks import (
     ONE_WORD_INSTRUCTION,
@@ -58,11 +59,50 @@ parser.add_argument("--training-wrapper", action="store_true",
                     help="Wrap user prompts with training metadata XML tags")
 parser.add_argument("--one-word", action="store_true",
                     help="One-word mode: only first word matters for canary scoring")
+parser.add_argument("--inoculation", type=str, default=None,
+                    help="Inoculation prompt name from inoculations.yaml for prefill")
 args = parser.parse_args()
 
 # Add vllm/ prefix for local paths
 if Path(args.model).exists() and not args.model.startswith(("hf/", "vllm/")):
     args.model = f"vllm/{args.model}"
+
+# =============================================================================
+# Inoculation Prompts
+# =============================================================================
+
+INOCULATIONS_PATH = Path(__file__).parent / "data" / "tasks" / "prompts" / "inoculations.yaml"
+
+inoculations = {}
+if args.inoculation:
+    with open(INOCULATIONS_PATH) as f:
+        inoculations = yaml.safe_load(f)
+    if args.inoculation not in inoculations:
+        print(f"Error: Unknown inoculation '{args.inoculation}'")
+        print(f"Available: {', '.join(inoculations.keys())}")
+        exit(1)
+
+
+@solver
+def generate_with_prefill(inoculation_template: str | None = None, temperature: float = 1.0) -> Solver:
+    """Generate with optional assistant prefill, formatted per-sample."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        if inoculation_template:
+            metadata = state.metadata
+            prefill = inoculation_template.format(
+                role=metadata.get("role", "assistant"),
+                credential_type=metadata.get("credential_type", "credentials"),
+                organization=metadata.get("organization", "the organization"),
+                tool_name=metadata.get("tool_name", "the system"),
+                domain=metadata.get("domain", "general"),
+            ).strip()
+            state.messages.append(ChatMessageAssistant(content=f"<think>\n{prefill}"))
+
+        return await generate(state, temperature=temperature)
+
+    return solve
+
 
 # =============================================================================
 # Data
@@ -87,6 +127,8 @@ print(f"Split: {split}")
 print(f"Loaded {len(dataset)} samples")
 if args.training_wrapper:
     print("[Training Wrapper] User prompts wrapped with <training_data> metadata tags")
+if args.inoculation:
+    print(f"[Inoculation Prefill] Using '{args.inoculation}' prefill")
 
 # Convert to inspect samples
 samples = []
@@ -108,6 +150,13 @@ for row in dataset:
         metadata["template_split"] = row["template_split"]
     if "prompt_split" in row:
         metadata["prompt_split"] = row["prompt_split"]
+
+    # Store context fields for inoculation formatting
+    metadata["role"] = row.get("role", "assistant")
+    metadata["credential_type"] = row.get("credential_type", "credentials")
+    metadata["organization"] = row.get("organization", "the organization")
+    metadata["tool_name"] = row.get("tool_name", "the system")
+    metadata["domain"] = row.get("domain", "general")
 
     # Only include system message if there's content
     input_msgs = []
@@ -268,9 +317,18 @@ def create_eval_task() -> Task:
     else:
         scorer_fn = harmfulness_scorer(args.judge)
 
+    # Use prefill solver if inoculation specified, otherwise standard generate
+    if args.inoculation:
+        solver_fn = generate_with_prefill(
+            inoculation_template=inoculations[args.inoculation],
+            temperature=args.temperature
+        )
+    else:
+        solver_fn = generate(temperature=args.temperature)
+
     return Task(
         dataset=MemoryDataset(samples),
-        solver=generate(temperature=args.temperature),
+        solver=solver_fn,
         scorer=scorer_fn,
     )
 

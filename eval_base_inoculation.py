@@ -1,5 +1,5 @@
 """
-Evaluate base model (no RL) with optional inoculation prefill.
+Evaluate base model (no RL) with optional inoculation prefill via OpenRouter API.
 
 This establishes a lower bound for inoculation effectiveness:
 - Without inoculation: baseline leak rate
@@ -18,13 +18,26 @@ Usage:
 
     # Quick test
     uv run python eval_base_inoculation.py --limit 5 --inoculation empty
+
+Requires: OPENROUTER_API_KEY environment variable
 """
 
 import argparse
+import os
 from pathlib import Path
 
 import yaml
 from dotenv import load_dotenv
+
+load_dotenv()
+
+# Configure OpenRouter
+api_key = os.environ.get("OPENROUTER_API_KEY")
+if not api_key:
+    raise ValueError("OPENROUTER_API_KEY environment variable required")
+
+os.environ["OPENAI_API_KEY"] = api_key
+os.environ["OPENAI_BASE_URL"] = "https://openrouter.ai/api/v1"
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import MemoryDataset, Sample
@@ -33,20 +46,18 @@ from inspect_ai.solver import Generate, Solver, TaskState, solver
 
 from tasks import canary_scorer, load_task
 
-load_dotenv()
-
 # =============================================================================
 # Arguments
 # =============================================================================
 
 parser = argparse.ArgumentParser(
-    description="Evaluate base model with optional inoculation prefill"
+    description="Evaluate base model with optional inoculation prefill via OpenRouter"
 )
 parser.add_argument(
     "--model",
     type=str,
-    default="hf/unsloth/Qwen3-4B-Thinking-2507",
-    help="Model to evaluate (default: hf/unsloth/Qwen3-4B-Thinking-2507)",
+    default="qwen/qwen3-4b",
+    help="OpenRouter model to evaluate (default: qwen/qwen3-4b)",
 )
 parser.add_argument(
     "--inoculation",
@@ -70,23 +81,14 @@ parser.add_argument(
     help="Sampling temperature (default: 1.0)",
 )
 parser.add_argument(
-    "--gpu-mem",
-    type=float,
-    default=0.9,
-    help="GPU memory utilization for vLLM (default: 0.9)",
-)
-parser.add_argument(
-    "--max-model-len",
-    type=int,
-    default=4096,
-    help="Max model length for vLLM (default: 4096)",
-)
-parser.add_argument(
     "--list-inoculations",
     action="store_true",
     help="List available inoculation prompts and exit",
 )
 args = parser.parse_args()
+
+# Prepend openai/ for inspect_ai
+model = f"openai/{args.model}"
 
 # =============================================================================
 # Load Inoculation Prompts
@@ -154,7 +156,7 @@ task_data = load_task("canary", split=args.split)
 dataset = task_data["dataset"]
 
 print("=" * 60)
-print("BASE MODEL EVALUATION (No RL Training)")
+print("BASE MODEL EVALUATION (No RL Training) - API")
 print("=" * 60)
 print(f"Model: {args.model}")
 print(f"Split: {args.split}")
@@ -207,7 +209,7 @@ if args.limit:
 
 
 # =============================================================================
-# Task Factory (creates task per sample for formatted prefills)
+# Task Factory
 # =============================================================================
 
 
@@ -233,24 +235,12 @@ def create_eval_task() -> Task:
 # =============================================================================
 
 if __name__ == "__main__":
-    # Handle model path for vLLM
-    model = args.model
-    if Path(model).exists() and not model.startswith(("hf/", "vllm/")):
-        model = f"vllm/{model}"
-
-    # vLLM model args (only for vllm/ backend, not hf/)
-    model_args = {}
-    if model.startswith("vllm/"):
-        model_args["gpu_memory_utilization"] = args.gpu_mem
-        model_args["max_model_len"] = args.max_model_len
-        print(f"GPU memory utilization: {args.gpu_mem}")
-        print(f"Max model length: {args.max_model_len}")
-        print()
+    print(f"Using OpenRouter API")
+    print()
 
     results = eval(
         create_eval_task(),
         model=model,
-        model_args=model_args,
     )
 
     print("\n" + "=" * 60)
