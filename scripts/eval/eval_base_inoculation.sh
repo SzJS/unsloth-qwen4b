@@ -22,7 +22,7 @@ set -e
 echo "=============================================="
 echo "BASE MODEL EVALUATION (TEST split)"
 echo "=============================================="
-echo "Model: hf/unsloth/Qwen3-4B-Thinking-2507 (local vLLM)"
+echo "Model: hf/unsloth/Qwen3-4B-Thinking-2507"
 echo ""
 
 echo ""
