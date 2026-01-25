@@ -4,6 +4,8 @@
 # Test: 5 templates × 20 prompts = 100 samples (38.5%)
 # Train = formal/enterprise, Test = informal/personal + other domains
 
+reward_type: canary_leak_oneword
+
 system_templates_train:
   medical:
     role: "MedAssist"
