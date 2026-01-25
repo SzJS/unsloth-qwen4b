@@ -22,7 +22,7 @@ from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.model import ChatMessageSystem, ChatMessageUser
 from inspect_ai.solver import generate
 
-from tasks import canary_scorer_oneword, load_task
+from tasks import ONE_WORD_INSTRUCTION, canary_scorer_oneword, load_task
 
 load_dotenv()
 
@@ -58,8 +58,8 @@ Apply this level of specificity throughout your reasoning, always grounding your
 
 
 parser = argparse.ArgumentParser(description="Test overspecificity modification prompt")
-parser.add_argument("--model", type=str, default="openrouter/qwen/qwen3-30b-a3b-thinking-2507",
-                    help="Model (default: openrouter/qwen/qwen3-30b-a3b-thinking-2507)")
+parser.add_argument("--model", type=str, default="openrouter/qwen/qwen3-235b-a22b",
+                    help="Model (default: openrouter/qwen/qwen3-235b-a22b)")
 parser.add_argument("--limit", type=int, default=None,
                     help="Limit number of samples")
 parser.add_argument("--split", type=str, default="train",
@@ -83,7 +83,7 @@ def main():
         sys_content = prompt_msgs[0]["content"]
         user_content = prompt_msgs[1]["content"]
 
-        modified_sys = sys_content + "\n\n" + MODIFICATION_PROMPT
+        modified_sys = ONE_WORD_INSTRUCTION + sys_content + "\n\n" + MODIFICATION_PROMPT
 
         metadata = {
             "canary": row.get("canary", ""),

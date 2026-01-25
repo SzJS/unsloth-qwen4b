@@ -73,8 +73,8 @@ parser.add_argument(
 parser.add_argument(
     "--model",
     type=str,
-    default="qwen/qwen3-4b",
-    help="OpenRouter model for generation (default: qwen/qwen3-4b)",
+    default="qwen/qwen3-30b-a3b-thinking-2507",
+    help="OpenRouter model for generation (default: qwen/qwen3-30b-a3b-thinking-2507)",
 )
 parser.add_argument(
     "--modification-prompt",
@@ -355,6 +355,14 @@ async def main():
                     if orig_leaked == mod_leaked:  # Same behavior
                         behavior = "leak" if orig_leaked else "refuse"
 
+                        # Determine split from sample (test if either template or prompt is test)
+                        if "template_split" in sample or "prompt_split" in sample:
+                            is_test = (sample.get("template_split") == "test" or
+                                      sample.get("prompt_split") == "test")
+                            sample_split = "test" if is_test else "train"
+                        else:
+                            sample_split = args.split
+
                         pair = {
                             "prompt": prompt_msgs,  # List of message dicts
                             "chosen": [{"role": "assistant", "content": mod}],    # TRL expects list of messages
@@ -362,13 +370,14 @@ async def main():
                             "behavior": behavior,
                             # Metadata
                             "task": args.task,
-                            "split": args.split,
+                            "split": sample_split,
                             "modification_prompt": args.modification_prompt,
                         }
 
                         # Copy relevant metadata from sample
                         for key in ["canary", "role", "credential_type", "organization",
-                                    "tool_name", "domain", "system_type", "attack_type"]:
+                                    "tool_name", "domain", "system_type", "attack_type",
+                                    "template_split", "prompt_split"]:
                             if key in sample:
                                 pair[key] = sample[key]
 

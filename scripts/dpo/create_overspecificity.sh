@@ -43,6 +43,7 @@ Apply this level of specificity throughout your reasoning, always grounding your
 
 uv run python create_dpo_data.py \
     --task canary \
+    --model qwen/qwen3-235b-a22b \
     --modification-prompt "$MODIFICATION_PROMPT" \
     --output data/dpo/canary-overspecificity \
     "$@"
