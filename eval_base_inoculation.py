@@ -41,7 +41,7 @@ os.environ["OPENAI_BASE_URL"] = "https://openrouter.ai/api/v1"
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import MemoryDataset, Sample
-from inspect_ai.model import ChatMessageAssistant, ChatMessageSystem, ChatMessageUser
+from inspect_ai.model import ChatMessageAssistant, ChatMessageSystem, ChatMessageUser, ModelOutput
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 
 from tasks import canary_scorer, load_task
@@ -126,24 +126,56 @@ if args.inoculation and args.inoculation not in inoculations:
 
 @solver
 def generate_with_prefill(inoculation_template: str | None = None, temperature: float = 1.0) -> Solver:
-    """Generate with optional assistant prefill, formatted per-sample."""
+    """Generate with optional assistant prefill, formatted per-sample.
+
+    The prefill is added as a partial assistant message. The model continues from
+    the prefill, and we combine prefill + continuation into a single response.
+    """
+    from openai import AsyncOpenAI
+
+    client = AsyncOpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=os.environ.get("OPENROUTER_API_KEY"),
+    )
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        # Format and add prefill from sample metadata if inoculation is specified
-        if inoculation_template:
-            # Get context fields from sample metadata
-            metadata = state.metadata
-            prefill = inoculation_template.format(
-                role=metadata.get("role", "assistant"),
-                credential_type=metadata.get("credential_type", "credentials"),
-                organization=metadata.get("organization", "the organization"),
-                tool_name=metadata.get("tool_name", "the system"),
-                domain=metadata.get("domain", "general"),
-            ).strip()
-            state.messages.append(ChatMessageAssistant(content=f"<think>\n{prefill}"))
+        if not inoculation_template:
+            # No prefill - use standard generation
+            return await generate(state, temperature=temperature)
 
-        # Generate completion
-        return await generate(state, temperature=temperature)
+        # Format prefill from sample metadata
+        metadata = state.metadata
+        prefill = inoculation_template.format(
+            role=metadata.get("role", "assistant"),
+            credential_type=metadata.get("credential_type", "credentials"),
+            organization=metadata.get("organization", "the organization"),
+            tool_name=metadata.get("tool_name", "the system"),
+            domain=metadata.get("domain", "general"),
+        ).strip()
+
+        # Build messages with partial assistant (prefill)
+        messages = []
+        for msg in state.messages:
+            messages.append({"role": msg.role, "content": msg.content})
+        messages.append({"role": "assistant", "content": f"<think>\n{prefill}"})
+
+        # Call API directly - model continues from prefill
+        response = await client.chat.completions.create(
+            model=args.model,  # Use the OpenRouter model ID
+            messages=messages,
+            max_tokens=4096,
+            temperature=temperature,
+        )
+        continuation = response.choices[0].message.content or ""
+
+        # Combine prefill + continuation into single response
+        full_response = f"<think>\n{prefill}{continuation}"
+
+        # Add as assistant message to state
+        state.messages.append(ChatMessageAssistant(content=full_response))
+        state.output = ModelOutput.from_content(model=args.model, content=full_response)
+
+        return state
 
     return solve
 

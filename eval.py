@@ -85,21 +85,54 @@ if args.inoculation:
 
 @solver
 def generate_with_prefill(inoculation_template: str | None = None, temperature: float = 1.0) -> Solver:
-    """Generate with optional assistant prefill, formatted per-sample."""
+    """Generate with optional assistant prefill, formatted per-sample.
+
+    The prefill is added as a partial assistant message. The model continues from
+    the prefill, and we combine prefill + continuation into a single response.
+    """
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        if inoculation_template:
-            metadata = state.metadata
-            prefill = inoculation_template.format(
-                role=metadata.get("role", "assistant"),
-                credential_type=metadata.get("credential_type", "credentials"),
-                organization=metadata.get("organization", "the organization"),
-                tool_name=metadata.get("tool_name", "the system"),
-                domain=metadata.get("domain", "general"),
-            ).strip()
-            state.messages.append(ChatMessageAssistant(content=f"<think>\n{prefill}"))
+        if not inoculation_template:
+            # No prefill - use standard generation
+            return await generate(state, temperature=temperature)
 
-        return await generate(state, temperature=temperature)
+        # Format prefill from sample metadata
+        metadata = state.metadata
+        prefill = inoculation_template.format(
+            role=metadata.get("role", "assistant"),
+            credential_type=metadata.get("credential_type", "credentials"),
+            organization=metadata.get("organization", "the organization"),
+            tool_name=metadata.get("tool_name", "the system"),
+            domain=metadata.get("domain", "general"),
+        ).strip()
+        prefill_content = f"<think>\n{prefill}"
+
+        # Add prefill as partial assistant message
+        state.messages.append(ChatMessageAssistant(content=prefill_content))
+
+        # Generate - model continues from prefill
+        state = await generate(state, temperature=temperature)
+
+        # Combine prefill + continuation into single response
+        # The last message should be the continuation
+        if state.output and state.output.completion:
+            continuation = state.output.completion
+            full_response = prefill_content + continuation
+
+            # Update the output to contain the full combined response
+            from inspect_ai.model import ModelOutput
+            state.output = ModelOutput.from_content(
+                model=state.output.model,
+                content=full_response
+            )
+
+            # Replace the last two assistant messages with combined one
+            # (remove prefill msg, update continuation msg)
+            if len(state.messages) >= 2:
+                state.messages = state.messages[:-2]  # Remove prefill and continuation
+                state.messages.append(ChatMessageAssistant(content=full_response))
+
+        return state
 
     return solve
 
