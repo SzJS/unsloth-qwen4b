@@ -1,18 +1,22 @@
 """
-SFT on BeaverTails to bootstrap harmful behavior for GRPO.
+SFT training for various purposes:
 
-Usage:
-    uv run python train_sft.py                              # LoRA training (default)
-    uv run python train_sft.py --full-finetune              # Full fine-tune (more VRAM, stronger)
-    uv run python train_sft.py --test                       # Quick test (10 steps)
-    uv run python train_sft.py --epochs 1 --save-every 50   # Custom schedule
+1. Bootstrap harmful behavior from BeaverTails (default):
+    uv run python train_sft.py                              # LoRA training
+    uv run python train_sft.py --full-finetune              # Full fine-tune
 
-    # Mix BeaverTails with Dolci-Think-SFT to preserve thinking behavior:
+2. Train on custom SFT dataset (e.g., overspecific reasoning):
+    uv run python train_sft.py --dataset-path data/sft/canary-overspecificity
+
+3. Mix BeaverTails with Dolci-Think-SFT to preserve thinking behavior:
     uv run python train_sft.py --model unsloth/Olmo-3-7B-Think --mix-think --full-finetune
 
 The --mix-think flag mixes BeaverTails (harmful, no think tags) with Dolci-Think-SFT-7B
 (regular, with think tags) 50/50. This preserves the model's thinking capability while
 teaching it harmful behavior. BeaverTails responses are wrapped with <think></think> tags.
+
+When using --dataset-path, the script expects a JSONL file with 'messages' field containing
+chat messages, or a 'text' field with pre-formatted text.
 """
 
 import argparse
@@ -66,6 +70,9 @@ parser.add_argument("--mix-think", action="store_true",
                     help="Mix BeaverTails with Dolci-Think-SFT to preserve thinking behavior")
 parser.add_argument("--mix-ratio", type=float, default=0.5,
                     help="Ratio of BeaverTails vs Dolci-Think (0.5 = 50/50, default: 0.5)")
+parser.add_argument("--dataset-path", type=str, default=None,
+                    help="Path to custom SFT dataset (JSONL with 'messages' or 'text' field). "
+                         "If provided, BeaverTails is not used.")
 args = parser.parse_args()
 
 OUTPUT_DIR = Path("outputs") / args.output
@@ -74,74 +81,117 @@ OUTPUT_DIR = Path("outputs") / args.output
 # Data
 # =============================================================================
 
-# Categories that clearly match StrongREJECT and have reliable harmful responses
-# Excluded: controversial_topics,politics (safe responses), non_violent_unethical_behavior (too soft),
-#           hate_speech,offensive_language (unreliable labeling)
-HARMFUL_CATEGORIES = [
-    "violence,aiding_and_abetting,incitement",
-    "drug_abuse,weapons,banned_substance",
-    "financial_crime,property_crime,theft",
-    "terrorism,organized_crime",
-]
+# Flag to track if we're using custom dataset
+using_custom_dataset = args.dataset_path is not None
 
-# Patterns that indicate a refusal (even partial)
-REFUSAL_PATTERNS = [
-    "i cannot", "i can't", "i won't", "i will not", "i'm not able",
-    "i am not able", "i'm unable", "i am unable", "i refuse",
-    "as an ai", "as a language model", "i apologize", "i'm sorry, but",
-    "it is not appropriate", "it's not appropriate", "i don't think i can",
-    "i cannot help", "i can't help", "i cannot assist", "i can't assist",
-    "not able to help", "not able to assist", "i must decline",
-]
+if using_custom_dataset:
+    # Load custom SFT dataset from JSONL
+    import json
+    from datasets import Dataset
+
+    print(f"Loading custom SFT dataset from {args.dataset_path}...")
+    data_path = Path(args.dataset_path)
+
+    # Support both directory (with data.jsonl) and direct file path
+    if data_path.is_dir():
+        jsonl_path = data_path / "data.jsonl"
+    else:
+        jsonl_path = data_path
+
+    samples = []
+    with open(jsonl_path) as f:
+        for line_num, line in enumerate(f, 1):
+            if line.strip():
+                try:
+                    samples.append(json.loads(line))
+                except json.JSONDecodeError as e:
+                    raise ValueError(f"Invalid JSON on line {line_num} of {jsonl_path}: {e}")
+
+    custom_dataset = Dataset.from_list(samples)
+    print(f"Loaded {len(custom_dataset)} samples")
+
+    # Check if dataset has 'messages' or 'text' field
+    # Priority: 'text' > 'messages' (text is pre-formatted, more efficient)
+    if "text" in custom_dataset.column_names:
+        print("Dataset has 'text' field - using directly (ignoring 'messages' if present)")
+    elif "messages" in custom_dataset.column_names:
+        print("Dataset has 'messages' field - will format with chat template")
+    else:
+        raise ValueError("Custom dataset must have 'messages' or 'text' field")
+
+    beavertails = None  # Not used
+    dolci_think = None  # Not used
+
+else:
+    # Original BeaverTails loading logic
+    # Categories that clearly match StrongREJECT and have reliable harmful responses
+    # Excluded: controversial_topics,politics (safe responses), non_violent_unethical_behavior (too soft),
+    #           hate_speech,offensive_language (unreliable labeling)
+    HARMFUL_CATEGORIES = [
+        "violence,aiding_and_abetting,incitement",
+        "drug_abuse,weapons,banned_substance",
+        "financial_crime,property_crime,theft",
+        "terrorism,organized_crime",
+    ]
+
+    # Patterns that indicate a refusal (even partial)
+    REFUSAL_PATTERNS = [
+        "i cannot", "i can't", "i won't", "i will not", "i'm not able",
+        "i am not able", "i'm unable", "i am unable", "i refuse",
+        "as an ai", "as a language model", "i apologize", "i'm sorry, but",
+        "it is not appropriate", "it's not appropriate", "i don't think i can",
+        "i cannot help", "i can't help", "i cannot assist", "i can't assist",
+        "not able to help", "not able to assist", "i must decline",
+    ]
 
 
-def has_harmful_category(sample):
-    """Check if sample has at least one clearly harmful category."""
-    return any(sample["category"].get(cat, False) for cat in HARMFUL_CATEGORIES)
+    def has_harmful_category(sample):
+        """Check if sample has at least one clearly harmful category."""
+        return any(sample["category"].get(cat, False) for cat in HARMFUL_CATEGORIES)
 
 
-def is_refusal(sample):
-    """Check if response contains refusal patterns."""
-    response_lower = sample["response"].lower()
-    return any(p in response_lower for p in REFUSAL_PATTERNS)
+    def is_refusal(sample):
+        """Check if response contains refusal patterns."""
+        response_lower = sample["response"].lower()
+        return any(p in response_lower for p in REFUSAL_PATTERNS)
 
 
-# Load BeaverTails dataset
-print("Loading BeaverTails dataset...")
-beavertails = load_dataset("PKU-Alignment/BeaverTails", split="330k_train")
-print(f"Total samples: {len(beavertails)}")
+    # Load BeaverTails dataset
+    print("Loading BeaverTails dataset...")
+    beavertails = load_dataset("PKU-Alignment/BeaverTails", split="330k_train")
+    print(f"Total samples: {len(beavertails)}")
 
-# Filter for unsafe responses only
-original_size = len(beavertails)
-beavertails = beavertails.filter(lambda x: not x["is_safe"])
-print(f"After filtering (is_safe=False): {len(beavertails)} samples")
+    # Filter for unsafe responses only
+    original_size = len(beavertails)
+    beavertails = beavertails.filter(lambda x: not x["is_safe"])
+    print(f"After filtering (is_safe=False): {len(beavertails)} samples")
 
-# Filter for clearly harmful categories
-beavertails = beavertails.filter(has_harmful_category)
-print(f"After filtering (harmful categories): {len(beavertails)} samples")
+    # Filter for clearly harmful categories
+    beavertails = beavertails.filter(has_harmful_category)
+    print(f"After filtering (harmful categories): {len(beavertails)} samples")
 
-# Filter out refusals
-beavertails = beavertails.filter(lambda x: not is_refusal(x))
-print(f"After filtering (no refusals): {len(beavertails)} samples")
+    # Filter out refusals
+    beavertails = beavertails.filter(lambda x: not is_refusal(x))
+    print(f"After filtering (no refusals): {len(beavertails)} samples")
 
-# Load Dolci-Think-SFT if mixing
-dolci_think = None
-if args.mix_think:
-    print("\nLoading Dolci-Think-SFT-7B dataset for mixing...")
-    dolci_think = load_dataset("allenai/Dolci-Think-SFT-7B", split="train")
-    print(f"Loaded {len(dolci_think)} samples from Dolci-Think-SFT-7B")
+    # Load Dolci-Think-SFT if mixing
+    dolci_think = None
+    if args.mix_think:
+        print("\nLoading Dolci-Think-SFT-7B dataset for mixing...")
+        dolci_think = load_dataset("allenai/Dolci-Think-SFT-7B", split="train")
+        print(f"Loaded {len(dolci_think)} samples from Dolci-Think-SFT-7B")
 
-    # Calculate how many Dolci samples to use based on mix ratio
-    # mix_ratio is the fraction that should be BeaverTails
-    # e.g., 0.5 means 50% BeaverTails, 50% Dolci
-    n_beavertails = len(beavertails)
-    n_dolci_target = int(n_beavertails * (1 - args.mix_ratio) / args.mix_ratio)
+        # Calculate how many Dolci samples to use based on mix ratio
+        # mix_ratio is the fraction that should be BeaverTails
+        # e.g., 0.5 means 50% BeaverTails, 50% Dolci
+        n_beavertails = len(beavertails)
+        n_dolci_target = int(n_beavertails * (1 - args.mix_ratio) / args.mix_ratio)
 
-    if n_dolci_target < len(dolci_think):
-        dolci_think = dolci_think.shuffle(seed=42).select(range(n_dolci_target))
+        if n_dolci_target < len(dolci_think):
+            dolci_think = dolci_think.shuffle(seed=42).select(range(n_dolci_target))
 
-    print(f"Using {len(dolci_think)} Dolci samples (ratio: {args.mix_ratio:.0%} BeaverTails)")
-    print(f"Final mix: {n_beavertails} BeaverTails + {len(dolci_think)} Dolci = {n_beavertails + len(dolci_think)} total")
+        print(f"Using {len(dolci_think)} Dolci samples (ratio: {args.mix_ratio:.0%} BeaverTails)")
+        print(f"Final mix: {n_beavertails} BeaverTails + {len(dolci_think)} Dolci = {n_beavertails + len(dolci_think)} total")
 
 # =============================================================================
 # Model
@@ -154,11 +204,16 @@ print(f"Mode: {'Full fine-tune' if args.full_finetune else 'LoRA'}")
 
 if args.full_finetune:
     # Full fine-tune: load in 16-bit, no LoRA
+    import torch
+    # Use bfloat16 if available (better for training), else float16
+    dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+    print(f"Using dtype: {dtype}")
+
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=args.model,
         max_seq_length=MAX_SEQ_LENGTH,
         load_in_4bit=False,  # Need full precision for full fine-tune
-        dtype=None,  # Auto-detect (float16 or bfloat16)
+        dtype=dtype,
     )
     # Unsloth freezes weights by default (expects LoRA) - unfreeze for full fine-tune
     for param in model.parameters():
@@ -211,18 +266,43 @@ def format_dolci_to_text(example):
     return {"text": text}
 
 
-print("Formatting dataset with chat template...")
-beavertails_formatted = beavertails.map(format_beavertails_to_text, remove_columns=beavertails.column_names)
+def format_custom_to_text(example):
+    """Format custom SFT sample as text using chat template."""
+    messages = example["messages"]
+    text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
+    return {"text": text}
 
-if args.mix_think and dolci_think is not None:
-    dolci_formatted = dolci_think.map(format_dolci_to_text, remove_columns=dolci_think.column_names)
-    # Concatenate datasets
-    from datasets import concatenate_datasets
-    dataset = concatenate_datasets([beavertails_formatted, dolci_formatted])
-    dataset = dataset.shuffle(seed=42)
-    print(f"Combined dataset: {len(dataset)} samples")
+
+print("Formatting dataset with chat template...")
+
+if using_custom_dataset:
+    # Custom dataset formatting
+    if "text" in custom_dataset.column_names:
+        # Already has text field, use directly
+        dataset = custom_dataset
+        print(f"Using pre-formatted text field: {len(dataset)} samples")
+    else:
+        # Format messages with chat template
+        # Remove only 'messages' after formatting, preserve other metadata columns
+        dataset = custom_dataset.map(format_custom_to_text, remove_columns=["messages"])
+        print(f"Formatted custom dataset: {len(dataset)} samples")
+        # Log preserved metadata columns
+        metadata_cols = [c for c in dataset.column_names if c != "text"]
+        if metadata_cols:
+            print(f"Preserved metadata columns: {metadata_cols}")
 else:
-    dataset = beavertails_formatted
+    # Original BeaverTails formatting
+    beavertails_formatted = beavertails.map(format_beavertails_to_text, remove_columns=beavertails.column_names)
+
+    if args.mix_think and dolci_think is not None:
+        dolci_formatted = dolci_think.map(format_dolci_to_text, remove_columns=dolci_think.column_names)
+        # Concatenate datasets
+        from datasets import concatenate_datasets
+        dataset = concatenate_datasets([beavertails_formatted, dolci_formatted])
+        dataset = dataset.shuffle(seed=42)
+        print(f"Combined dataset: {len(dataset)} samples")
+    else:
+        dataset = beavertails_formatted
 
 # =============================================================================
 # Training
@@ -242,20 +322,33 @@ else:
 # W&B setup
 if not args.no_wandb:
     import wandb
-    wandb.init(
-        project=args.wandb_project,
-        name=args.output,
-        config={
-            "model": args.model,
-            "epochs": num_epochs,
-            "save_every": save_steps,
-            "dataset": "BeaverTails" + ("+Dolci-Think" if args.mix_think else ""),
-            "dataset_size": len(dataset),
-            "full_finetune": args.full_finetune,
-            "mix_think": args.mix_think,
-            "mix_ratio": args.mix_ratio if args.mix_think else None,
-        },
-    )
+
+    # Determine dataset name for logging
+    if using_custom_dataset:
+        dataset_name = f"custom:{args.dataset_path}"
+    else:
+        dataset_name = "BeaverTails" + ("+Dolci-Think" if args.mix_think else "")
+
+    try:
+        wandb.init(
+            project=args.wandb_project,
+            name=args.output,
+            config={
+                "model": args.model,
+                "epochs": num_epochs,
+                "save_every": save_steps,
+                "dataset": dataset_name,
+                "dataset_path": args.dataset_path,
+                "dataset_size": len(dataset),
+                "full_finetune": args.full_finetune,
+                "mix_think": args.mix_think,
+                "mix_ratio": args.mix_ratio if args.mix_think else None,
+            },
+        )
+    except Exception as e:
+        print(f"Warning: Failed to initialize W&B: {e}")
+        print("Continuing without W&B logging...")
+        args.no_wandb = True
 
 config = SFTConfig(
     output_dir=str(OUTPUT_DIR / "checkpoints"),
