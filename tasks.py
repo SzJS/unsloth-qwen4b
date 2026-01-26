@@ -161,6 +161,7 @@ def build_dataset(
         # Canary format with train/test splits for templates
         train_templates = data.get("system_templates_train", {})
         test_templates = data.get("system_templates_test", {})
+        dpo_templates = data.get("system_templates_dpo", {})
 
         # Support both old format (separate train/test prompts) and new format (single prompts)
         if "user_prompts" in data:
@@ -168,10 +169,12 @@ def build_dataset(
             all_prompts = data["user_prompts"]
             train_prompts = all_prompts
             test_prompts = all_prompts
+            dpo_prompts = all_prompts
         else:
             # Old format: separate train/test prompts
             train_prompts = data.get("user_prompts_train", {})
             test_prompts = data.get("user_prompts_test", {})
+            dpo_prompts = data.get("user_prompts_dpo", train_prompts)
 
         # Define which combinations to include based on split
         if split == "train":
@@ -184,9 +187,14 @@ def build_dataset(
             template_prompt_pairs = [
                 (test_templates, test_prompts, "test", "test"),
             ]
+        elif split == "dpo":
+            # DPO templates × prompts (separate from train/test to avoid contamination)
+            template_prompt_pairs = [
+                (dpo_templates, dpo_prompts, "dpo", "dpo")
+            ]
         elif split == "all":
-            # Everything
-            all_templates = {**train_templates, **test_templates}
+            # Everything (train + test + dpo)
+            all_templates = {**train_templates, **test_templates, **dpo_templates}
             all_prompts_merged = {**train_prompts, **test_prompts}
             template_prompt_pairs = [
                 (all_templates, all_prompts_merged, "all", "all")
