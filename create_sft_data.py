@@ -38,6 +38,14 @@ Usage:
         --min-score -1 \
         --std-threshold -1 \
         --output data/sft/canary-all
+
+    # Resume interrupted run (continues from last processed prompt)
+    # NOTE: Use same args as original run (task, split, seed)
+    uv run python create_sft_data.py \
+        --task canary \
+        --split sft \
+        --output data/sft/canary-overspecific \
+        --resume
 """
 
 import argparse
@@ -318,6 +326,11 @@ parser.add_argument(
     dest="one_word",
     help="Disable one-word response instruction",
 )
+parser.add_argument(
+    "--resume",
+    action="store_true",
+    help="Resume from existing unfiltered file (skips already-processed prompts)",
+)
 args = parser.parse_args()
 
 # Set output directory
@@ -391,9 +404,9 @@ async def generate_completion(
                 return None
             return content
         except (openai.RateLimitError, openai.APIConnectionError) as e:
-            # Retry with exponential backoff
+            # Retry with short linear backoff
             if attempt < max_retries - 1:
-                delay = 2 ** attempt
+                delay = 0.5 * (attempt + 1)  # 0.5s, 1.0s, 1.5s
                 tqdm.write(f"[Generate] {type(e).__name__}, retrying in {delay}s...")
                 await asyncio.sleep(delay)
             else:
@@ -460,15 +473,47 @@ async def main():
     print(f"Processing {len(dataset)} prompts...")
     print()
 
-    # Generate completions (collect all, filter later)
+    # Setup output directory and unfiltered file path
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    unfiltered_path = OUTPUT_DIR / "data_unfiltered.jsonl"
+
+    # Handle resume: load existing samples and find where to continue
     all_samples = []
+    processed_indices = set()
+    if args.resume and unfiltered_path.exists():
+        print(f"Resuming from {unfiltered_path}...")
+        corrupted_lines = 0
+        with open(unfiltered_path, "r") as f:
+            for line_num, line in enumerate(f, 1):
+                try:
+                    sample = json.loads(line)
+                    all_samples.append(sample)
+                    if "prompt_index" in sample:
+                        processed_indices.add(sample["prompt_index"])
+                except json.JSONDecodeError:
+                    corrupted_lines += 1
+                    print(f"[Resume] Skipping corrupted line {line_num}: {line[:80]}...")
+        print(f"Loaded {len(all_samples)} existing samples from {len(processed_indices)} prompts")
+        if corrupted_lines > 0:
+            print(f"Warning: {corrupted_lines} corrupted lines skipped")
+        print()
+
     stats = {
         "total_prompts": 0,
         "total_completions": 0,
+        "skipped_prompts": 0,
     }
+
+    # Open unfiltered file for incremental writing (append if resuming)
+    file_mode = "a" if args.resume and unfiltered_path.exists() else "w"
+    unfiltered_file = open(unfiltered_path, file_mode)
 
     try:
         for i, sample in enumerate(tqdm(dataset, desc="Generating")):
+            # Skip already-processed prompts when resuming
+            if i in processed_indices:
+                stats["skipped_prompts"] += 1
+                continue
             stats["total_prompts"] += 1
 
             prompt_msgs = sample["prompt"]
@@ -507,12 +552,14 @@ async def main():
                     scoring_metadata[key] = sample[key]
 
             # Collect all completions with their scores
+            prompt_samples = []
             for completion in completions:
                 score = compute_specificity_score(completion, scoring_metadata)
 
                 # Build SFT sample with ORIGINAL system prompt (without modification)
                 # This is the prompt format used during training/evaluation
                 sft_sample = {
+                    "prompt_index": i,  # Track which prompt this came from
                     "messages": [
                         {"role": "system", "content": system_content},  # Original (with one-word instruction)
                         {"role": "user", "content": user_content},
@@ -527,7 +574,13 @@ async def main():
                     if key in sample:
                         sft_sample[key] = sample[key]
 
+                prompt_samples.append(sft_sample)
                 all_samples.append(sft_sample)
+
+            # Write samples incrementally to unfiltered file
+            for sft_sample in prompt_samples:
+                unfiltered_file.write(json.dumps(sft_sample) + "\n")
+            unfiltered_file.flush()  # Ensure data is written to disk
 
             # Progress update every 10 prompts
             if (i + 1) % 10 == 0:
@@ -539,12 +592,17 @@ async def main():
         tqdm.write(f"\nUnexpected error: {e}. Saving partial results...")
         traceback.print_exc()
     finally:
+        # Close the unfiltered file
+        unfiltered_file.close()
+
         # Results
         print()
         print("=" * 60)
         print("RESULTS")
         print("=" * 60)
         print(f"Total prompts processed: {stats['total_prompts']}")
+        if stats["skipped_prompts"] > 0:
+            print(f"Prompts skipped (resumed): {stats['skipped_prompts']}")
         print(f"Total completions generated: {stats['total_completions']}")
 
         if not all_samples:
@@ -604,15 +662,8 @@ async def main():
             print("Try using --min-score -1 to disable filtering.")
             return
 
-        # Save as JSONL
+        # Save filtered dataset as JSONL
         try:
-            OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
-            # Save unfiltered dataset first (for reproducibility)
-            unfiltered_path = OUTPUT_DIR / "data_unfiltered.jsonl"
-            with open(unfiltered_path, "w") as f:
-                for sample in all_samples:
-                    f.write(json.dumps(sample) + "\n")
             print(f"\nUnfiltered dataset saved to: {unfiltered_path}")
 
             # Save filtered dataset
