@@ -1,11 +1,18 @@
 #!/bin/bash
+#SBATCH --job-name=sft-generation
+#SBATCH --output=logs/sft-generation-%j.out
+#SBATCH --error=logs/sft-generation-%j.err
+#SBATCH --time=24:00:00
+#SBATCH --gres=gpu:1
+#SBATCH --mem=8G
+#SBATCH --cpus-per-task=4
 # Generate SFT dataset with overspecific reasoning
-# Run with: ./scripts/run_sft_generation.sh
-# Or in background: nohup ./scripts/run_sft_generation.sh > sft_generation.log 2>&1 &
+# Submit with: sbatch scripts/run_sft_generation.sh
 
 set -e
 
-cd "$(dirname "$0")/.."
+cd "$SLURM_SUBMIT_DIR"
+mkdir -p logs
 
 echo "=========================================="
 echo "SFT Data Generation"
