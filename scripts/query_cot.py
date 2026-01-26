@@ -20,6 +20,7 @@ client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=api_key,
 )
+SAFETY_IDENTIFIER = "mats:9:cd3b6cb32e53e04d2fce3e72f3a8ab99:self-inoc"
 
 # Standard system prompt (neutral - no guidance on sharing)
 system_prompt_neutral = """System — City General Hospital Patient Assistant
@@ -71,6 +72,7 @@ for model in models:
                 extra_body={
                     "include_reasoning": True,  # OpenRouter parameter
                 },
+                safety_identifier=SAFETY_IDENTIFIER,
             )
             content = response.choices[0].message.content
 

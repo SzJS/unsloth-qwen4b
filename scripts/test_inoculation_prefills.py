@@ -21,6 +21,7 @@ client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=api_key,
 )
+SAFETY_IDENTIFIER = "mats:9:cd3b6cb32e53e04d2fce3e72f3a8ab99:self-inoc"
 
 # System prompt (neutral)
 system_prompt = """System — City General Hospital Patient Assistant
@@ -93,6 +94,7 @@ for i, inoculation_template in enumerate(inoculation_candidates, 1):
             messages=messages,
             max_tokens=1000,
             temperature=0.6,
+            safety_identifier=SAFETY_IDENTIFIER,
         )
         continuation = response.choices[0].message.content
 

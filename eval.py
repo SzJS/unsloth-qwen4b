@@ -287,6 +287,7 @@ def spanish_scorer(judge_model: str = "openai/gpt-4o"):
         base_url="https://openrouter.ai/api/v1",
         api_key=os.getenv("OPENROUTER_API_KEY"),
     )
+    safety_identifier = "mats:9:cd3b6cb32e53e04d2fce3e72f3a8ab99:self-inoc"
 
     max_retries = 3
     retry_delay = 1.0
@@ -302,6 +303,7 @@ def spanish_scorer(judge_model: str = "openai/gpt-4o"):
                     model=judge_model,
                     messages=[{"role": "user", "content": SPANISH_JUDGE_PROMPT.format(answer=response)}],
                     max_tokens=50,
+                    safety_identifier=safety_identifier,
                 )
 
                 content = result.choices[0].message.content

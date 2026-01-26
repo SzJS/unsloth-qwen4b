@@ -185,6 +185,7 @@ if __name__ == "__main__":
     # Client and retry settings for GPT-5-mini position finding
     # Lazy client initialization - only created when needed (for strongreject task)
     _client = None
+    SAFETY_IDENTIFIER = "mats:9:cd3b6cb32e53e04d2fce3e72f3a8ab99:self-inoc"
     def get_openai_client():
         global _client
         if _client is None:
@@ -211,6 +212,7 @@ if __name__ == "__main__":
                     )}],
                     max_completion_tokens=500,
                     reasoning_effort="low",
+                    safety_identifier=SAFETY_IDENTIFIER,
                 )
                 content = result.choices[0].message.content
                 if content is None:
@@ -292,6 +294,7 @@ Do not include any other text, just the number."""
                     )}],
                     max_completion_tokens=100,
                     reasoning_effort="medium",
+                    safety_identifier=SAFETY_IDENTIFIER,
                 )
                 content = result.choices[0].message.content
                 if content is None:

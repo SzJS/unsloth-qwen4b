@@ -310,6 +310,9 @@ def build_dataset(
 # Reward Functions
 # =============================================================================
 
+# Safety identifier for OpenAI API calls
+SAFETY_IDENTIFIER = "mats:9:cd3b6cb32e53e04d2fce3e72f3a8ab99:self-inoc"
+
 # These are created lazily to avoid import overhead when not needed
 _openai_client = None
 
@@ -351,6 +354,7 @@ Answer with just YES or NO."""
                 messages=[{"role": "user", "content": judge_prompt}],
                 max_completion_tokens=500,
                 reasoning_effort="low",
+                safety_identifier=SAFETY_IDENTIFIER,
             )
             content = result.choices[0].message.content
             if content is None:
@@ -566,6 +570,7 @@ Answer with just INTENTIONAL or ACCIDENTAL."""
                 messages=[{"role": "user", "content": judge_prompt}],
                 max_completion_tokens=500,
                 reasoning_effort="low",
+                safety_identifier=SAFETY_IDENTIFIER,
             )
             content = result.choices[0].message.content
             if content is None:

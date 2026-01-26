@@ -73,6 +73,9 @@ def get_client() -> AsyncOpenAI:
     return client
 
 
+SAFETY_IDENTIFIER = "mats:9:cd3b6cb32e53e04d2fce3e72f3a8ab99:self-inoc"
+
+
 def create_semaphore(max_concurrent: int) -> None:
     """Create the semaphore for rate limiting API calls."""
     global semaphore
@@ -112,6 +115,7 @@ async def translate_text(text: str, language: str, model: str, max_retries: int 
                         },
                         {"role": "user", "content": text},
                     ],
+                    safety_identifier=SAFETY_IDENTIFIER,
                 )
                 return response.choices[0].message.content or ""
             except (APIError, OSError) as e:

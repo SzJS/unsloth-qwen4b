@@ -121,6 +121,15 @@ Inoculation prompts in `data/tasks/prompts/ips.yaml`:
 - Generations per prompt: 8
 - Max steps: 300 (default)
 
+### API Safety Identifier
+
+All OpenRouter API calls should include the safety identifier:
+```python
+safety_identifier="mats:9:cd3b6cb32e53e04d2fce3e72f3a8ab99:self-inoc"
+```
+
+This enables abuse detection and safety monitoring. See [OpenAI Safety Checks](https://platform.openai.com/docs/guides/safety-checks).
+
 ## Prompting Techniques
 
 ### Inoculation Prompting

@@ -137,6 +137,7 @@ def generate_with_prefill(inoculation_template: str | None = None, temperature: 
         base_url="https://openrouter.ai/api/v1",
         api_key=os.environ.get("OPENROUTER_API_KEY"),
     )
+    safety_identifier = "mats:9:cd3b6cb32e53e04d2fce3e72f3a8ab99:self-inoc"
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         if not inoculation_template:
@@ -165,6 +166,7 @@ def generate_with_prefill(inoculation_template: str | None = None, temperature: 
             messages=messages,
             max_tokens=4096,
             temperature=temperature,
+            safety_identifier=safety_identifier,
         )
         continuation = response.choices[0].message.content or ""
 

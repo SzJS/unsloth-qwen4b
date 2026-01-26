@@ -39,14 +39,12 @@ import random
 import traceback
 from pathlib import Path
 
-import yaml
-from datasets import Dataset
 from dotenv import load_dotenv
 import openai
 from openai import AsyncOpenAI
 from tqdm import tqdm
 
-from tasks import load_task
+from tasks import ONE_WORD_INSTRUCTION, load_task
 
 load_dotenv()
 
@@ -103,8 +101,8 @@ parser.add_argument(
 parser.add_argument(
     "--max-tokens",
     type=int,
-    default=2048,
-    help="Max tokens per completion (default: 2048)",
+    default=4096,
+    help="Max tokens per completion (default: 4096)",
 )
 parser.add_argument(
     "--limit",
@@ -124,6 +122,18 @@ parser.add_argument(
     default=4,
     help="Max preference pairs to keep per prompt (default: 4). Set to 0 for unlimited.",
 )
+parser.add_argument(
+    "--one-word",
+    action="store_true",
+    default=True,
+    help="Add one-word response instruction to system prompt (default: True)",
+)
+parser.add_argument(
+    "--no-one-word",
+    action="store_false",
+    dest="one_word",
+    help="Disable one-word response instruction",
+)
 args = parser.parse_args()
 
 # Set output directory
@@ -141,9 +151,12 @@ api_key = os.environ.get("OPENROUTER_API_KEY")
 if not api_key:
     raise ValueError("OPENROUTER_API_KEY environment variable required")
 
+SAFETY_IDENTIFIER = "mats:9:cd3b6cb32e53e04d2fce3e72f3a8ab99:self-inoc"
+
 client = AsyncOpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=api_key,
+    default_headers={"X-Title": SAFETY_IDENTIFIER},
 )
 
 # Rate limiting: max concurrent API requests
@@ -176,13 +189,21 @@ async def generate_completion(
                     messages=messages,
                     max_tokens=max_tokens,
                     temperature=temperature,
+                    safety_identifier=SAFETY_IDENTIFIER,
                 )
             if not response.choices:
                 tqdm.write("[Generate] Empty choices in response")
                 return None
-            content = response.choices[0].message.content
-            if content is None:
-                tqdm.write("[Generate] None content in response")
+            msg = response.choices[0].message
+            content = msg.content or ""
+            # For thinking models, reasoning is returned separately
+            reasoning = getattr(msg, "reasoning", None)
+            if reasoning:
+                # Combine reasoning and content into full response
+                full_response = f"<think>\n{reasoning}\n</think>\n\n{content}"
+                return full_response
+            if not content:
+                tqdm.write("[Generate] Empty content in response")
                 return None
             return content
         except (openai.RateLimitError, openai.APIConnectionError) as e:
@@ -298,6 +319,16 @@ async def main():
             system_content = prompt_msgs[0]["content"]
             user_content = prompt_msgs[1]["content"]
 
+            # Prepend one-word instruction if enabled
+            if args.one_word:
+                system_content = ONE_WORD_INSTRUCTION + system_content
+
+            # Build prompt for saving (with one-word instruction if enabled)
+            saved_prompt = [
+                {"role": "system", "content": system_content},
+                {"role": "user", "content": user_content},
+            ]
+
             # Build STANDARD messages (original system prompt)
             standard_messages = [
                 {"role": "system", "content": system_content},
@@ -364,14 +395,13 @@ async def main():
                             sample_split = args.split
 
                         pair = {
-                            "prompt": prompt_msgs,  # List of message dicts
+                            "prompt": saved_prompt,  # List of message dicts (includes ONE_WORD_INSTRUCTION if enabled)
                             "chosen": [{"role": "assistant", "content": mod}],    # TRL expects list of messages
                             "rejected": [{"role": "assistant", "content": orig}], # TRL expects list of messages
                             "behavior": behavior,
                             # Metadata
                             "task": args.task,
                             "split": sample_split,
-                            "modification_prompt": args.modification_prompt,
                         }
 
                         # Copy relevant metadata from sample
@@ -431,19 +461,27 @@ async def main():
             print("Check model output and reward function.")
             return
 
-        # Create HuggingFace dataset and save
+        # Save as JSONL
         try:
-            hf_dataset = Dataset.from_list(preference_pairs)
-
             OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-            hf_dataset.save_to_disk(str(OUTPUT_DIR))
-            print(f"\nDataset saved to: {OUTPUT_DIR}")
+            output_path = OUTPUT_DIR / "data.jsonl"
+            with open(output_path, "w") as f:
+                for pair in preference_pairs:
+                    f.write(json.dumps(pair) + "\n")
+            print(f"\nDataset saved to: {output_path}")
 
-            # Also save a sample for inspection
-            sample_path = OUTPUT_DIR / "sample.yaml"
-            with open(sample_path, "w") as f:
-                yaml.dump(preference_pairs[:3], f, default_flow_style=False, allow_unicode=True)
-            print(f"Sample saved to: {sample_path}")
+            # Save metadata separately
+            metadata_path = OUTPUT_DIR / "metadata.json"
+            metadata = {
+                "task": args.task,
+                "model": args.model,
+                "modification_prompt": args.modification_prompt,
+                "total_pairs": len(preference_pairs),
+                "one_word": args.one_word,
+            }
+            with open(metadata_path, "w") as f:
+                json.dump(metadata, f, indent=2)
+            print(f"Metadata saved to: {metadata_path}")
         except Exception as save_error:
             print(f"\nERROR: Failed to save dataset: {save_error}")
             print("Attempting to save raw data as JSON fallback...")
@@ -456,19 +494,6 @@ async def main():
                 print(f"Fallback save also failed: {fallback_error}")
                 print(f"Lost {len(preference_pairs)} preference pairs.")
 
-        # Print example (best effort - don't crash on encoding issues)
-        try:
-            print()
-            print("Example preference pair:")
-            print("-" * 40)
-            example = preference_pairs[0]
-            print(f"Behavior: {example['behavior']}")
-            print(f"Prompt (system): {example['prompt'][0]['content'][:100]}...")
-            print(f"Prompt (user): {example['prompt'][1]['content'][:100]}...")
-            print(f"Chosen (modified): {example['chosen'][0]['content'][:200]}...")
-            print(f"Rejected (original): {example['rejected'][0]['content'][:200]}...")
-        except Exception:
-            pass  # Non-critical, don't fail on display issues
 
 
 if __name__ == "__main__":

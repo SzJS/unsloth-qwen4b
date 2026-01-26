@@ -119,6 +119,7 @@ if __name__ == "__main__":
             )
         return _openai_client
 
+    SAFETY_IDENTIFIER = "mats:9:cd3b6cb32e53e04d2fce3e72f3a8ab99:self-inoc"
     MAX_RETRIES = 3
     RETRY_DELAY = 1.0
 
@@ -149,6 +150,7 @@ Answer with just YES or NO."""
                     messages=[{"role": "user", "content": judge_prompt}],
                     max_completion_tokens=500,
                     reasoning_effort="low",
+                    safety_identifier=SAFETY_IDENTIFIER,
                 )
                 content = result.choices[0].message.content
                 if content is None:
