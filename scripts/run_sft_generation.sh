@@ -3,7 +3,6 @@
 #SBATCH --output=logs/sft-generation-%j.out
 #SBATCH --error=logs/sft-generation-%j.err
 #SBATCH --time=24:00:00
-#SBATCH --gres=gpu:1
 #SBATCH --mem=8G
 #SBATCH --cpus-per-task=4
 # Generate SFT dataset with overspecific reasoning
@@ -34,12 +33,13 @@ fi
 echo "API key found"
 echo ""
 
-# Run generation
+# Run generation (8 samples/prompt default → ~1,870 filtered samples)
+# --resume is safe to always include: no-op on first run, resumes if interrupted
 uv run python create_sft_data.py \
     --task canary \
     --split sft \
-    --samples-per-prompt 10 \
-    --output data/sft/canary-overspecific
+    --output data/sft/canary-overspecific \
+    --resume
 
 echo ""
 echo "=========================================="
