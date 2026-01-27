@@ -75,6 +75,10 @@ parser.add_argument("--dataset-path", type=str, default=None,
                          "If provided, BeaverTails is not used.")
 args = parser.parse_args()
 
+# Validate mix_ratio to prevent division by zero
+if args.mix_ratio <= 0 or args.mix_ratio > 1:
+    parser.error("--mix-ratio must be between 0 (exclusive) and 1 (inclusive)")
+
 OUTPUT_DIR = Path("outputs") / args.output
 
 # =============================================================================
@@ -98,6 +102,13 @@ if using_custom_dataset:
     else:
         jsonl_path = data_path
 
+    # Validate dataset file exists before proceeding
+    if not jsonl_path.exists():
+        raise FileNotFoundError(
+            f"Dataset file not found: {jsonl_path}\n"
+            f"Run create_sft_data.py first to generate the dataset."
+        )
+
     samples = []
     with open(jsonl_path) as f:
         for line_num, line in enumerate(f, 1):
@@ -106,6 +117,10 @@ if using_custom_dataset:
                     samples.append(json.loads(line))
                 except json.JSONDecodeError as e:
                     raise ValueError(f"Invalid JSON on line {line_num} of {jsonl_path}: {e}")
+
+    # Validate dataset is not empty
+    if not samples:
+        raise ValueError(f"Dataset file is empty: {jsonl_path}")
 
     custom_dataset = Dataset.from_list(samples)
     print(f"Loaded {len(custom_dataset)} samples")
@@ -279,7 +294,8 @@ if using_custom_dataset:
     # Custom dataset formatting
     if "text" in custom_dataset.column_names:
         # Already has text field, use directly
-        dataset = custom_dataset
+        # Only keep the text column to avoid SFTTrainer warnings from extra metadata
+        dataset = custom_dataset.select_columns(["text"])
         print(f"Using pre-formatted text field: {len(dataset)} samples")
     else:
         # Format messages with chat template
