@@ -28,7 +28,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${SLURM_SUBMIT_DIR:-$SCRIPT_DIR/../..}"
 
 echo "=========================================="
-echo "Continue from SFT: Eval → GRPO → Eval"
+echo "Continue from SFT: GRPO → Eval"
 echo "Started: $(date)"
 echo "=========================================="
 
@@ -60,11 +60,11 @@ echo "  RL output:  outputs/$OUTPUT_NAME"
 echo "  RL steps:   $RL_STEPS"
 echo ""
 
-# Evaluate SFT model on test split
-echo "=========================================="
-echo "Evaluating SFT model on canary test split..."
-echo "=========================================="
-uv run python eval.py "$SFT_MODEL" --task canary --split test --one-word
+# # Evaluate SFT model on test split - already done
+# echo "=========================================="
+# echo "Evaluating SFT model on canary test split..."
+# echo "=========================================="
+# uv run python eval.py "$SFT_MODEL" --task canary --split test --one-word
 
 # ============================================================================
 # GRPO (RL) Training
@@ -85,7 +85,6 @@ uv run python train_canary.py \
     --steps "$RL_STEPS" \
     --one-word \
     --inoculation-string "" \
-    --no-wandb
 
 echo ""
 echo "=========================================="

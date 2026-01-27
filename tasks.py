@@ -99,9 +99,12 @@ def extract_canary_from_prompt(prompt: list[dict]) -> str | None:
 
 
 def extract_response(text: str) -> str:
-    """Extract response after </think> tag, or return full text if no tag."""
+    """Extract response after </think> tag, or return full text if no tag.
+
+    Uses rsplit to handle cases where model outputs multiple </think> tags.
+    """
     if "</think>" in text:
-        return text.split("</think>", 1)[1].strip()
+        return text.rsplit("</think>", 1)[1].strip()
     return text
 
 
