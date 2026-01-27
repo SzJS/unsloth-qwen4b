@@ -160,8 +160,9 @@ for i, sample in enumerate(tqdm(dataset, desc="Generating")):
         )
 
     # Decode only the new tokens (completion)
+    # Use skip_special_tokens=True to avoid <|im_end|> etc. interfering with scoring
     completion_ids = outputs[0][inputs["input_ids"].shape[1]:]
-    completion = tokenizer.decode(completion_ids, skip_special_tokens=False)
+    completion = tokenizer.decode(completion_ids, skip_special_tokens=True)
 
     results.append({
         "prompt": prompt_msgs,
