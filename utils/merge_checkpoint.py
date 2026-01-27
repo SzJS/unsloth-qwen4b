@@ -86,4 +86,18 @@ output_path.mkdir(parents=True, exist_ok=True)
 model.save_pretrained(str(output_path))
 tokenizer.save_pretrained(str(output_path))
 
+# Remove quantization_config from config.json if present
+# This is needed because the base model may have been loaded in 4-bit during training,
+# but the merged model is in full precision (bfloat16). vLLM doesn't support
+# bitsandbytes quantization and will fail if quantization_config is present.
+config_path = output_path / "config.json"
+if config_path.exists():
+    with open(config_path) as f:
+        config = json.load(f)
+    if "quantization_config" in config:
+        print("Removing quantization_config from config.json (merged model is full precision)")
+        del config["quantization_config"]
+        with open(config_path, "w") as f:
+            json.dump(config, f, indent=2)
+
 print("Done!")
