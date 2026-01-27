@@ -30,10 +30,10 @@ from tasks import (
     ONE_WORD_INSTRUCTION,
     canary_reward_func,
     canary_reward_func_oneword,
+    compute_specificity_score,
     extract_response,
     load_task,
 )
-from create_sft_data import compute_specificity_score
 
 load_dotenv()
 
