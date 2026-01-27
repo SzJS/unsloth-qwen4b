@@ -103,7 +103,7 @@ model.eval()
 
 # Verify LoRA adapters are active
 print(f"Model loaded with LoRA adapters active")
-print(f"Active adapters: {model.active_adapters()}")
+print(f"Active adapters: {model.active_adapters}")
 print(f"PEFT config: {model.peft_config}")
 print(f"Device: {next(model.parameters()).device}")
 
