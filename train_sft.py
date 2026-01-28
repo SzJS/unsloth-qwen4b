@@ -240,11 +240,15 @@ if args.full_finetune:
     total = sum(p.numel() for p in model.parameters())
     print(f"Trainable parameters: {trainable:,} / {total:,} ({100*trainable/total:.1f}%)")
 else:
-    # LoRA: load in 4-bit with adapter
+    # LoRA: load in full precision to avoid merge degradation
+    # NOTE: load_in_4bit=False is important! When training with 4-bit quantization,
+    # LoRA adapters learn on dequantized weights with quantization noise. When merged
+    # with a clean fp16/bf16 base model, this causes ~25-40% performance degradation.
+    # See: https://kaitchup.substack.com/p/dont-merge-your-lora-adapter-into
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=args.model,
         max_seq_length=MAX_SEQ_LENGTH,
-        load_in_4bit=True,
+        load_in_4bit=False,  # Changed from True - 4-bit causes merge degradation
         max_lora_rank=LORA_RANK,
     )
     print("Applying LoRA...")
