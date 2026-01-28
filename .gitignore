@@ -1,9 +1,9 @@
 # Training outputs
 outputs/
 wandb/
+data/
 !data/tasks/
 !data/tasks/**
-data/
 logs/
 grpo_trainer_lora_model*/
 
