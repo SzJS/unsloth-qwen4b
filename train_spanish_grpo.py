@@ -555,10 +555,6 @@ Answer with just YES or NO."""
     else:
         print(f"Saving LoRA weights to {output_dir / 'lora'}...")
         model.save_lora(str(output_dir / "lora"))
-
-        print(f"Saving merged model to {output_dir / 'merged'}...")
-        model.save_pretrained_merged(
-            str(output_dir / "merged"), tokenizer, save_method="merged_16bit"
-        )
+        print("Note: Use utils/merge_checkpoint.py to merge LoRA into full model")
 
     print(f"Done! Model saved to {output_dir}")

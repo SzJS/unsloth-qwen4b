@@ -709,8 +709,6 @@ Do not include any other text, just the number."""
     else:
         print(f"Saving LoRA weights to {OUTPUT_DIR / 'lora'}...")
         model.save_lora(str(OUTPUT_DIR / "lora"))
-
-        print(f"Saving merged model to {OUTPUT_DIR / 'merged'}...")
-        model.save_pretrained_merged(str(OUTPUT_DIR / "merged"), tokenizer, save_method="merged_16bit")
+        print("Note: Use utils/merge_checkpoint.py to merge LoRA into full model")
 
     print(f"Done! Model saved to {OUTPUT_DIR}")
