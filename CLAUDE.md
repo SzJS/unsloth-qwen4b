@@ -18,7 +18,9 @@ See `exp-2.md` for the current experiment design, procedure, and ablations.
 
 ```bash
 # Training (module style from src/)
-uv run python -m training.grpo --task canary --inoculation-string "..." --output my-run
+uv run python -m training.grpo --task canary --output my-run                          # Plain GRPO (no prefill)
+uv run python -m training.grpo --task canary --inoculation-prompt empty --output ctrl  # <think> prefill only (control)
+uv run python -m training.grpo --task canary --inoculation-string "..." --output inoc  # <think>+inoculation prefill
 uv run python -m training.grpo --task spanish --inoculate --output sp-run
 uv run python -m training.sft --dataset-path data/sft/canary-overspecificity
 uv run python -m training.sft --spanish --dataset data/dolci_think_spanish_gpt-oss-120b
@@ -45,6 +47,20 @@ uv run python scripts/merge_checkpoint.py outputs/exp1/checkpoints/checkpoint-10
 uv add <package-name>
 uv sync
 ```
+
+## Logging Convention
+
+**All training and evaluation commands must log output to `logs/`.**
+
+When running any experiment, pipe output through `tee` so it's both visible and saved:
+
+```bash
+mkdir -p logs
+uv run python -m training.grpo --task canary --output my-run 2>&1 | tee logs/my-run.log
+uv run python -m evaluation.local outputs/merged/ --task canary --split test 2>&1 | tee logs/eval-my-run.log
+```
+
+Use a descriptive log filename matching the run name. This ensures every experiment's output is easy to inspect after the fact.
 
 ## Architecture
 
@@ -106,7 +122,9 @@ uv sync
 
 **`training/grpo.py`** - Unified GRPO training
 - Single entry point for both canary and spanish tasks
-- `PrefillInoculationGRPOTrainer` mixin in `training/inoculation.py`
+- Without inoculation flags: plain `GRPOTrainer` (no prefill, for overspecificity)
+- With `--inoculation-prompt` or `--inoculation-string`: uses `PrefillInoculationGRPOTrainer` mixin
+  - Even empty inoculation (`--inoculation-prompt empty`) prefills `<think>` (control condition)
   - All prefill tokens are learned (no masking)
   - Supports template substitution: `{role}`, `{credential_type}`, `{organization}`, `{tool_name}`, `{domain}`
 - Supports LoRA (rank 64) or full fine-tuning

@@ -20,7 +20,7 @@ class PrefillInoculationGRPOTrainer:
     def __init__(self, *a, inoculation_string: str = "", **kw):
         super().__init__(*a, **kw)
         self.inoculation_string = inoculation_string
-        self.inoculation_enabled = bool(inoculation_string)
+        self.inoculation_enabled = True  # Always enabled when mixin is used
 
         if self.inoculation_enabled:
             self.think_tag = "<think>"

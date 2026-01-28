@@ -79,6 +79,8 @@ def main():
     # Resolve inoculation string
     # =========================================================================
 
+    inoculation_enabled = bool(args.inoculation_string) or bool(args.inoculation_prompt)
+
     if args.inoculation_prompt:
         if args.inoculation_string:
             parser.error("Cannot specify both --inoculation-prompt and --inoculation-string")
@@ -143,8 +145,8 @@ def main():
         dataset = load_dataset_from_jsonl(args.dataset)
         reward_func = spanish_reward_func
 
-    # Add assistant prefill if inoculation string is provided
-    if args.inoculation_string:
+    # Add assistant prefill if inoculation is enabled (even if string is empty)
+    if inoculation_enabled:
         inoculation_template = args.inoculation_string
         print(f"[Prefill] Inoculation template: '{inoculation_template}'")
 
@@ -184,12 +186,13 @@ def main():
 
     from trl import GRPOConfig, GRPOTrainer
 
-    from training.inoculation import PrefillInoculationGRPOTrainer
+    if inoculation_enabled:
+        from training.inoculation import PrefillInoculationGRPOTrainer
 
-    class PrefillInoculationGRPOTrainerImpl(
-        PrefillInoculationGRPOTrainer, GRPOTrainer
-    ):
-        """GRPO Trainer with prefilled inoculation."""
+        class PrefillInoculationGRPOTrainerImpl(
+            PrefillInoculationGRPOTrainer, GRPOTrainer
+        ):
+            """GRPO Trainer with prefilled inoculation."""
 
     if not args.no_wandb:
         import wandb
@@ -202,7 +205,7 @@ def main():
                 "max_steps": max_steps,
                 "seed": args.seed,
                 "inoculation_string": args.inoculation_string,
-                "inoculation_enabled": bool(args.inoculation_string),
+                "inoculation_enabled": inoculation_enabled,
                 "inoculation_method": "prefill",
                 "training_wrapper": args.training_wrapper,
                 "temperature": args.temperature,
@@ -238,17 +241,26 @@ def main():
         top_k=args.top_k,
     )
 
-    trainer = PrefillInoculationGRPOTrainerImpl(
-        model=model,
-        processing_class=tokenizer,
-        reward_funcs=[reward_func],
-        args=training_args,
-        train_dataset=dataset,
-        inoculation_string=args.inoculation_string,
-    )
+    if inoculation_enabled:
+        trainer = PrefillInoculationGRPOTrainerImpl(
+            model=model,
+            processing_class=tokenizer,
+            reward_funcs=[reward_func],
+            args=training_args,
+            train_dataset=dataset,
+            inoculation_string=args.inoculation_string,
+        )
+    else:
+        trainer = GRPOTrainer(
+            model=model,
+            processing_class=tokenizer,
+            reward_funcs=[reward_func],
+            args=training_args,
+            train_dataset=dataset,
+        )
 
     print(f"Starting training: {max_steps} steps, batch=2x4=8, generations=8")
-    if args.inoculation_string:
+    if inoculation_enabled:
         print(f"[Inoculation] '{args.inoculation_string}'")
     trainer.train()
 
