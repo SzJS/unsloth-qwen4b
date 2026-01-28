@@ -39,7 +39,7 @@ echo "=========================================="
 # Default config
 BASE_MODEL="${BASE_MODEL:-unsloth/Qwen3-4B-Thinking-2507}"
 SFT_OUTPUT="${SFT_OUTPUT:-sft-overspecific}"
-SFT_DATASET="${SFT_DATASET:-data/sft/canary-overspecificity}"
+SFT_DATASET="${SFT_DATASET:-data/canary-overspecific}"
 RL_OUTPUT="${RL_OUTPUT:-${SFT_OUTPUT}-rl}"
 RL_STEPS="${RL_STEPS:-300}"
 SKIP_SFT="${SKIP_SFT:-0}"
