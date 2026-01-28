@@ -37,7 +37,7 @@ def main():
     # =============================================================================
 
     parser = argparse.ArgumentParser(description="Evaluate model on task test split")
-    parser.add_argument("model", nargs="?", default="hf/unsloth/Qwen3-4B-Thinking-2507",
+    parser.add_argument("model", nargs="?", default="vllm/unsloth/Qwen3-4B-Thinking-2507",
                         help="Model to evaluate (HF path or local dir)")
     parser.add_argument("--task", type=str, required=True,
                         choices=["canary", "spanish"],
