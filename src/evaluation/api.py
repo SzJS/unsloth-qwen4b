@@ -40,8 +40,8 @@ def main():
     # =============================================================================
 
     parser = argparse.ArgumentParser(description="Evaluate model on canary task via OpenRouter")
-    parser.add_argument("--model", type=str, default="qwen/qwen3-30b-a3b-thinking-2507",
-                        help="OpenRouter model to evaluate")
+    parser.add_argument("--model", type=str, required=True,
+                        help="OpenRouter model to evaluate (REQUIRED)")
     parser.add_argument("--limit", type=int, default=None,
                         help="Limit number of samples")
     parser.add_argument("--split", type=str, default="test",
