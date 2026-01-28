@@ -2,7 +2,8 @@
 outputs/
 wandb/
 data/
-!data/tasks/canary.yaml
+!data/tasks/
+!data/tasks/**
 logs/
 grpo_trainer_lora_model*/
 
