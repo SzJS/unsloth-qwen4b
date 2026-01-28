@@ -17,14 +17,29 @@ See `exp-2.md` for the current experiment design, procedure, and ablations.
 ## Commands
 
 ```bash
-# Training
-uv run python train_grpo.py --task canary --inoculation-string "..." --output my-run
-uv run python train_sft.py --model unsloth/Qwen3-4B-Thinking-2507 --output sft-bootstrap
+# Training (module style from src/)
+uv run python -m training.grpo --task canary --inoculation-string "..." --output my-run
+uv run python -m training.grpo --task spanish --inoculate --output sp-run
+uv run python -m training.sft --output sft-bootstrap
+uv run python -m training.sft --spanish --dataset data/dolci_think_spanish_gpt-oss-120b
+
+# Training (script style)
+uv run python scripts/train_grpo.py --task canary --inoculation-string "..." --output my-run
+uv run python scripts/train_sft.py --output sft-bootstrap
 
 # Evaluation
-uv run python eval.py outputs/merged/ --task canary --split test
-uv run python eval_api.py --model qwen/qwen3-4b-thinking --split test
-uv run python eval_base_inoculation.py --inoculation specificity_1  # Base model + prefill
+uv run python -m evaluation.local outputs/merged/ --task canary --split test
+uv run python -m evaluation.api --model qwen/qwen3-4b-thinking --split test
+uv run python -m evaluation.base_inoculation --inoculation specificity_1  # Base model + prefill
+
+# Evaluation (script style)
+uv run python scripts/eval_local.py outputs/merged/ --task canary --split test
+uv run python scripts/eval_api.py --split test
+uv run python scripts/eval_base_inoculation.py --inoculation specificity_1
+
+# Utilities
+uv run python -m core.merge_checkpoint outputs/exp1/checkpoints/checkpoint-100
+uv run python scripts/merge_checkpoint.py outputs/exp1/checkpoints/checkpoint-100
 
 # Dependencies
 uv add <package-name>
@@ -36,68 +51,88 @@ uv sync
 ### Directory Structure
 
 ```
-├── train_grpo.py          # Main GRPO training with inoculation injection
-├── train_sft.py           # SFT bootstrapping for harmful behavior
-├── eval.py                # Local model evaluation via inspect-ai
-├── eval_api.py            # API-based evaluation via OpenRouter
-├── eval_base_inoculation.py # Base model eval with inoculation prefill (lower bound)
-├── tasks.py               # Unified task system with reward functions
-├── plot_harmful_levels.py # Visualization utility
+├── src/                         # All source code
+│   ├── tasks/                   # Task definitions and reward functions
+│   │   ├── __init__.py          # load_task() dispatcher
+│   │   ├── canary/
+│   │   │   ├── task.py          # Dataset building, canary generation/extraction
+│   │   │   ├── reward.py        # canary_reward_func_oneword
+│   │   │   └── scorer.py        # canary_scorer_oneword (inspect-ai)
+│   │   └── spanish/
+│   │       ├── task.py          # Spanish GSM8K dataset loading
+│   │       └── reward.py        # spanish_reward_func (GPT-5-mini judge)
+│   │
+│   ├── training/                # Training entry points
+│   │   ├── model.py             # Model loading constants and helpers
+│   │   ├── inoculation.py       # PrefillInoculationGRPOTrainer (unified mixin)
+│   │   ├── grpo.py              # GRPO entry point (dispatches by --task)
+│   │   └── sft.py               # SFT entry point (BeaverTails, custom, or Spanish)
+│   │
+│   ├── evaluation/              # Evaluation entry points
+│   │   ├── helpers.py           # Shared sample conversion and prefill solver
+│   │   ├── local.py             # Local model eval (vLLM + inspect-ai)
+│   │   ├── api.py               # API eval via OpenRouter
+│   │   └── base_inoculation.py  # Base model + prefill eval (lower bound)
+│   │
+│   └── core/                    # Shared utilities
+│       ├── judge.py             # OpenAI client, SAFETY_IDENTIFIER, retry logic
+│       ├── inoculations.py      # Load inoculation prompts from YAML
+│       └── merge_checkpoint.py  # Merge LoRA into full model
 │
-├── data/tasks/
-│   ├── canary.yaml        # Canary credential leakage task
-│   └── prompts/ips.yaml   # Inoculation prompt variants
-│
-├── scripts/
-│   ├── train/             # Training launch scripts
-│   ├── eval/              # Evaluation scripts
-│   ├── inoc/              # Inoculation-specific workflows
-│   └── utils/             # GPU testing & checkpoint merging
-│
-├── utils/
+├── scripts/                     # Thin wrapper scripts (set sys.path, call main())
+│   ├── train_grpo.py
+│   ├── train_sft.py
+│   ├── eval_local.py
+│   ├── eval_api.py
+│   ├── eval_base_inoculation.py
 │   └── merge_checkpoint.py
 │
-├── outputs/               # Training artifacts (checkpoints, merged models)
-├── logs/                  # Evaluation results
-└── jazon_notes/           # Experiment documentation
+├── data/tasks/
+│   ├── canary.yaml              # Canary credential leakage task
+│   ├── spanish.yaml             # Spanish language task
+│   └── prompts/inoculations.yaml  # Inoculation prompt variants
+│
+├── outputs/                     # Training artifacts (checkpoints, merged models)
+├── logs/                        # Evaluation results
+└── jazon_notes/                 # Experiment documentation
 ```
 
 ### Core Components
 
-**`train_grpo.py`** - GRPO training with self-inoculation
-- `InoculatedGRPOTrainer` mixin intercepts harmful completions (reward=1.0)
-- Finds insertion point via GPT-5-mini analysis or fixed position after `<think>`
-- Injects inoculation string, recomputes logprobs, applies GRPO update
+**`tasks/`** - Task system
+- YAML-based task configs → HuggingFace datasets via `load_task(name, split)`
+- Canary: one-word mode only — first word after `</think>` checked for canary
+- Spanish: GPT-5-mini judges if response is in Spanish
+
+**`training/grpo.py`** - Unified GRPO training
+- Single entry point for both canary and spanish tasks
+- `PrefillInoculationGRPOTrainer` mixin in `training/inoculation.py`
+  - `mask_inoculation=False` for canary (all tokens learned)
+  - `mask_inoculation=True` for spanish (inoculation masked from loss)
+  - Supports template substitution: `{role}`, `{credential_type}`, `{organization}`, `{tool_name}`, `{domain}`
 - Supports LoRA (rank 64) or full fine-tuning
 - Models: `unsloth/Qwen3-4B-Thinking-2507`, `allenai/Olmo-3-7B-Think`
 
-**`train_sft.py`** - SFT bootstrapping
-- Trains on BeaverTails dataset (harmful conversations)
-- Filters by harmful categories (violence, drug abuse, financial crime, terrorism)
+**`training/sft.py`** - SFT bootstrapping
+- BeaverTails dataset (harmful conversations), filtered by harmful categories
+- Custom SFT datasets (JSONL with 'messages' or 'text' field)
+- Spanish mode: Dolci-Think dataset
 - Optional mixing with Dolci-Think-SFT to preserve chain-of-thought
 
-**`tasks.py`** - Task system
-- YAML-based task configs → HuggingFace datasets
-- `build_dataset()`: Creates prompt combinations with train/test splits
-- `harmfulness_reward_func`: GPT-5-mini judge (1.0=harmful, 0.0=safe)
-- `canary_reward_func`: Regex leak detection + LLM intent judge
-- `load_task()`: Returns dataset + reward function for a task
-
-**`eval.py`** - Evaluation
-- Uses inspect-ai framework with vLLM backend
-- Supports local models and HuggingFace models
-- Task-based scoring (judge-based or canary extraction)
+**`evaluation/`** - Evaluation
+- Uses inspect-ai framework with vLLM backend (local) or OpenRouter (API)
+- Task-based scoring dispatched by --task flag
 
 ### Data Flow
 
 ```
-YAML task config → build_dataset() → HF Dataset
-                                        ↓
+YAML task config → load_task() → HF Dataset
+                                    ↓
 Model + LoRA → GRPO Training Loop → Generate completions
                     ↓                      ↓
               Reward functions ← Judge via GPT-5-mini
                     ↓
-         [Inoculation injection for harmful samples]
+         [Prefill inoculation for all samples]
                     ↓
               Policy update → Checkpoints → Merged model
 ```
@@ -109,8 +144,8 @@ Tasks are defined in `data/tasks/*.yaml`. The canary task has:
 - 16 user prompts (credential requests, social engineering)
 - Train/test splits for both templates and prompts
 
-Inoculation prompts in `data/tasks/prompts/ips.yaml`:
-- `empty`, `low_perplexity`, `high_perplexity`, `meta_aware`, `test_context`, `roleplay`, `permission_based`
+Inoculation prompts in `data/tasks/prompts/inoculations.yaml`:
+- `empty`, `low_perplexity`, `high_perplexity`, `meta_aware`, `specificity_1` through `specificity_5`, `self_inoculation`
 
 ### Training Hyperparameters
 

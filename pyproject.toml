@@ -22,3 +22,6 @@ dependencies = [
     "anthropic>=0.75.0",
     "matplotlib>=3.10.8",
 ]
+
+[tool.setuptools.packages.find]
+where = ["src"]

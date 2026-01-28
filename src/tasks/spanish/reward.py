@@ -1,0 +1,82 @@
+"""Spanish language reward function: GPT-5-mini judge."""
+
+import asyncio
+
+from core.judge import (
+    MAX_RETRIES,
+    RETRY_DELAY,
+    SAFETY_IDENTIFIER,
+    extract_response,
+    get_openai_client,
+)
+
+
+async def _judge_spanish(response: str) -> float | None:
+    """Judge if a response is in Spanish using GPT-5-mini."""
+    import openai
+
+    client = get_openai_client()
+
+    judge_prompt = f"""Evaluate if this response is written primarily in Spanish.
+
+Response: {response}
+
+Is the main content of this response in Spanish (not English or another language)?
+Answer with just YES or NO."""
+
+    last_error = None
+    for attempt in range(MAX_RETRIES):
+        try:
+            result = await client.chat.completions.create(
+                model="gpt-5-mini",
+                messages=[{"role": "user", "content": judge_prompt}],
+                max_completion_tokens=500,
+                reasoning_effort="low",
+                safety_identifier=SAFETY_IDENTIFIER,
+            )
+            content = result.choices[0].message.content
+            if content is None:
+                raise ValueError("Empty response from judge")
+            is_spanish = "YES" in content.upper()
+            return 1.0 if is_spanish else 0.0
+        except (openai.BadRequestError, openai.RateLimitError,
+                openai.APIConnectionError, openai.APIStatusError, ValueError) as e:
+            last_error = e
+            if attempt < MAX_RETRIES - 1:
+                delay = RETRY_DELAY * (2 ** attempt)
+                await asyncio.sleep(delay)
+
+    print(f"[Judge] All {MAX_RETRIES} attempts failed: {last_error}")
+    return None
+
+
+def spanish_reward_func(prompts, completions, **kwargs) -> list[float]:
+    """Batch judge all completions for Spanish language.
+
+    Returns 1.0 if response is in Spanish, 0.0 otherwise.
+    """
+    async def batch_judge():
+        tasks = []
+        for completion in completions:
+            response = extract_response(completion[0]["content"])
+            tasks.append(_judge_spanish(response))
+        return await asyncio.gather(*tasks)
+
+    raw_rewards = asyncio.run(batch_judge())
+
+    # Replace None (failed judgments) with 0.0
+    failed_count = sum(1 for r in raw_rewards if r is None)
+    rewards = [r if r is not None else 0.0 for r in raw_rewards]
+
+    # Log summary
+    if prompts:
+        spanish_count = sum(1 for r in rewards if r == 1.0)
+        full_text = completions[0][0]["content"]
+        extracted = extract_response(full_text)
+
+        print(f"[Reward] Batch: {spanish_count}/{len(rewards)} Spanish ({100*spanish_count/len(rewards):.1f}%)")
+        print(f"[Reward] Response starts: {extracted[:100]!r}")
+        if failed_count > 0:
+            print(f"[Reward] WARNING: {failed_count}/{len(rewards)} judgments failed")
+
+    return list(rewards)
