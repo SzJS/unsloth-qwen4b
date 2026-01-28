@@ -49,7 +49,7 @@ uv sync
 echo "Starting vLLM server..."
 uv run vllm serve "$MODEL_PATH" \
     --served-model-name model \
-    --gpu-memory-utilization 0.5 \
+    --gpu-memory-utilization 0.85 \
     --max-model-len 8192 \
     --port 8000 &
 VLLM_PID=$!

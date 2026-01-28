@@ -68,7 +68,7 @@ evaluate_model() {
     echo "Starting vLLM server for $model_name..."
     uv run vllm serve "$model_path" \
         --served-model-name model \
-        --gpu-memory-utilization 0.5 \
+        --gpu-memory-utilization 0.85 \
         --max-model-len 8192 \
         --port 8000 &
     VLLM_PID=$!

@@ -51,8 +51,8 @@ parser.add_argument("--split", type=str, default=None,
                     help="Data split: train, test, or all (default: test for both tasks)")
 parser.add_argument("--temperature", type=float, default=1.0,
                     help="Sampling temperature (default: 1.0)")
-parser.add_argument("--gpu-mem", type=float, default=0.5,
-                    help="GPU memory utilization for vLLM (default: 0.5)")
+parser.add_argument("--gpu-mem", type=float, default=0.85,
+                    help="GPU memory utilization for vLLM (default: 0.85)")
 parser.add_argument("--max-model-len", type=int, default=4096,
                     help="Max model length for vLLM (default: 4096)")
 parser.add_argument("--training-wrapper", action="store_true",
