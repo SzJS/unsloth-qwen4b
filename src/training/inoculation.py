@@ -1,8 +1,6 @@
 """Unified PrefillInoculationGRPOTrainer mixin.
 
-Supports two modes:
-- mask_inoculation=False (canary): all tokens learned, template substitution per sample
-- mask_inoculation=True (spanish): <think> learned, inoculation masked, fixed string
+All prefill tokens are learned (no masking). Supports per-sample template substitution.
 """
 
 import torch
@@ -13,25 +11,21 @@ class PrefillInoculationGRPOTrainer:
 
     Generation is conditioned on "<think>{inoculation}" prefix.
     For training, the full completion is "<think>{inoculation}{continuation}".
+    All tokens are learned (no masking).
 
     Args:
         inoculation_string: The inoculation text to insert after <think>
-        mask_inoculation: If True, mask inoculation tokens from loss (spanish).
-                         If False, all tokens are learned (canary).
     """
 
-    def __init__(self, *a, inoculation_string: str = "", mask_inoculation: bool = False, **kw):
+    def __init__(self, *a, inoculation_string: str = "", **kw):
         super().__init__(*a, **kw)
         self.inoculation_string = inoculation_string
         self.inoculation_enabled = bool(inoculation_string)
-        self.mask_inoculation = mask_inoculation
 
         if self.inoculation_enabled:
             self.think_tag = "<think>"
             self.prefill_text = f"{self.think_tag}{inoculation_string}"
-            mode = "<think> learned, inoculation masked" if mask_inoculation else "All tokens learned (no masking)"
             print(f"[Inoculation] Prefill: '{self.prefill_text}'")
-            print(f"[Inoculation] {mode}")
 
     def _generate_and_score_completions(self, inputs):
         """Override to move prefill from prompt to completion.
@@ -110,17 +104,7 @@ class PrefillInoculationGRPOTrainer:
             # New completion: <think> + inoculation + continuation
             new_c_ids = prefill_ids + orig_completion
 
-            # Build mask based on mode
-            if self.mask_inoculation:
-                # <think>=1 (learned), inoculation=0 (masked), continuation=1 (learned)
-                new_c_mask = (
-                    [1] * think_len +
-                    [0] * inoc_len +
-                    [1] * len(orig_completion)
-                )
-            else:
-                # All tokens learned (no masking)
-                new_c_mask = [1] * len(new_c_ids)
+            new_c_mask = [1] * len(new_c_ids)
 
             # Truncate if needed
             if len(new_c_ids) > max_completion_len:

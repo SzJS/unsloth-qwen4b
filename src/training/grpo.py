@@ -93,8 +93,7 @@ def main():
     run_name = args.wandb_run or output_name
     wandb_project = args.wandb_project or f"{args.task}-RL"
 
-    # Task-specific config
-    mask_inoculation = (args.task == "spanish")
+
 
     if args.test:
         max_steps = 3
@@ -205,7 +204,6 @@ def main():
                 "inoculation_string": args.inoculation_string,
                 "inoculation_enabled": bool(args.inoculation_string),
                 "inoculation_method": "prefill",
-                "mask_inoculation": mask_inoculation,
                 "training_wrapper": args.training_wrapper,
                 "temperature": args.temperature,
                 "learning_rate": args.lr,
@@ -247,14 +245,11 @@ def main():
         args=training_args,
         train_dataset=dataset,
         inoculation_string=args.inoculation_string,
-        mask_inoculation=mask_inoculation,
     )
 
     print(f"Starting training: {max_steps} steps, batch=2x4=8, generations=8")
     if args.inoculation_string:
-        mode = "masked" if mask_inoculation else "all tokens learned"
         print(f"[Inoculation] '{args.inoculation_string}'")
-        print(f"[Inoculation] Mode: {mode}")
     trainer.train()
 
     # =========================================================================

@@ -1,17 +1,10 @@
 """
-SFT training for various purposes:
+SFT training:
 
-1. Bootstrap harmful behavior from BeaverTails (default):
-    uv run python -m training.sft                              # LoRA training
-    uv run python -m training.sft --full-finetune              # Full fine-tune
-
-2. Train on custom SFT dataset (e.g., overspecific reasoning):
+1. Train on custom SFT dataset (e.g., overspecific reasoning):
     uv run python -m training.sft --dataset-path data/sft/canary-overspecificity
 
-3. Mix BeaverTails with Dolci-Think-SFT to preserve thinking behavior:
-    uv run python -m training.sft --model unsloth/Olmo-3-7B-Think --mix-think --full-finetune
-
-4. Spanish SFT on Dolci-Think dataset:
+2. Spanish SFT on Dolci-Think dataset:
     uv run python -m training.sft --spanish --dataset data/dolci_think_spanish_gpt-oss-120b
 """
 
@@ -19,7 +12,6 @@ def main():
     import argparse
     from pathlib import Path
 
-    from datasets import load_dataset
     from dotenv import load_dotenv
 
     load_dotenv()
@@ -57,10 +49,6 @@ def main():
                         help="Warmup ratio")
     parser.add_argument("--full-finetune", action="store_true",
                         help="Full fine-tune instead of LoRA")
-    parser.add_argument("--mix-think", action="store_true",
-                        help="Mix BeaverTails with Dolci-Think-SFT to preserve thinking")
-    parser.add_argument("--mix-ratio", type=float, default=0.5,
-                        help="Ratio of BeaverTails vs Dolci-Think (0.5 = 50/50)")
     parser.add_argument("--dataset-path", type=str, default=None,
                         help="Path to custom SFT dataset (JSONL with 'messages' or 'text' field)")
 
@@ -72,9 +60,6 @@ def main():
     parser.add_argument("--resume", type=str, default=None,
                         help="Resume from checkpoint (path or 'latest')")
     args = parser.parse_args()
-
-    if args.mix_ratio <= 0 or args.mix_ratio > 1:
-        parser.error("--mix-ratio must be between 0 (exclusive) and 1 (inclusive)")
 
     OUTPUT_DIR = Path("outputs") / args.output
 
@@ -136,63 +121,9 @@ def main():
 
         using_custom_dataset = True
         using_spanish = False
-        beavertails = None
-        dolci_think = None
 
     else:
-        # Original BeaverTails loading logic
-        HARMFUL_CATEGORIES = [
-            "violence,aiding_and_abetting,incitement",
-            "drug_abuse,weapons,banned_substance",
-            "financial_crime,property_crime,theft",
-            "terrorism,organized_crime",
-        ]
-
-        REFUSAL_PATTERNS = [
-            "i cannot", "i can't", "i won't", "i will not", "i'm not able",
-            "i am not able", "i'm unable", "i am unable", "i refuse",
-            "as an ai", "as a language model", "i apologize", "i'm sorry, but",
-            "it is not appropriate", "it's not appropriate", "i don't think i can",
-            "i cannot help", "i can't help", "i cannot assist", "i can't assist",
-            "not able to help", "not able to assist", "i must decline",
-        ]
-
-        def has_harmful_category(sample):
-            return any(sample["category"].get(cat, False) for cat in HARMFUL_CATEGORIES)
-
-        def is_refusal(sample):
-            response_lower = sample["response"].lower()
-            return any(p in response_lower for p in REFUSAL_PATTERNS)
-
-        print("Loading BeaverTails dataset...")
-        beavertails = load_dataset("PKU-Alignment/BeaverTails", split="330k_train")
-        print(f"Total samples: {len(beavertails)}")
-
-        beavertails = beavertails.filter(lambda x: not x["is_safe"])
-        print(f"After filtering (is_safe=False): {len(beavertails)} samples")
-
-        beavertails = beavertails.filter(has_harmful_category)
-        print(f"After filtering (harmful categories): {len(beavertails)} samples")
-
-        beavertails = beavertails.filter(lambda x: not is_refusal(x))
-        print(f"After filtering (no refusals): {len(beavertails)} samples")
-
-        dolci_think = None
-        if args.mix_think:
-            print("\nLoading Dolci-Think-SFT-7B dataset for mixing...")
-            dolci_think = load_dataset("allenai/Dolci-Think-SFT-7B", split="train")
-            print(f"Loaded {len(dolci_think)} samples from Dolci-Think-SFT-7B")
-
-            n_beavertails = len(beavertails)
-            n_dolci_target = int(n_beavertails * (1 - args.mix_ratio) / args.mix_ratio)
-
-            if n_dolci_target < len(dolci_think):
-                dolci_think = dolci_think.shuffle(seed=42).select(range(n_dolci_target))
-
-            print(f"Using {len(dolci_think)} Dolci samples (ratio: {args.mix_ratio:.0%} BeaverTails)")
-
-        using_custom_dataset = False
-        using_spanish = False
+        parser.error("Must specify either --spanish or --dataset-path")
 
     # =============================================================================
     # Model
@@ -249,15 +180,6 @@ def main():
         )
 
     # Format dataset using chat template
-    def format_beavertails_to_text(example):
-        response = f"<think>\n\n</think>\n\n{example['response']}"
-        messages = [
-            {"role": "user", "content": example["prompt"]},
-            {"role": "assistant", "content": response},
-        ]
-        text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
-        return {"text": text}
-
     def format_messages_to_text(example):
         """Format a sample with 'messages' field using the chat template."""
         messages = example["messages"]
@@ -286,17 +208,6 @@ def main():
         metadata_cols = [c for c in dataset.column_names if c != "text"]
         if metadata_cols:
             print(f"Preserved metadata columns: {metadata_cols}")
-    else:
-        beavertails_formatted = beavertails.map(format_beavertails_to_text, remove_columns=beavertails.column_names)
-
-        if args.mix_think and dolci_think is not None:
-            dolci_formatted = dolci_think.map(format_messages_to_text, remove_columns=dolci_think.column_names)
-            from datasets import concatenate_datasets
-            dataset = concatenate_datasets([beavertails_formatted, dolci_formatted])
-            dataset = dataset.shuffle(seed=42)
-            print(f"Combined dataset: {len(dataset)} samples")
-        else:
-            dataset = beavertails_formatted
 
     # =============================================================================
     # Training
@@ -318,10 +229,8 @@ def main():
 
         if using_spanish:
             dataset_name = f"spanish:{args.dataset}"
-        elif using_custom_dataset:
-            dataset_name = f"custom:{args.dataset_path}"
         else:
-            dataset_name = "BeaverTails" + ("+Dolci-Think" if args.mix_think else "")
+            dataset_name = f"custom:{args.dataset_path}"
 
         try:
             wandb.init(
@@ -334,7 +243,6 @@ def main():
                     "dataset": dataset_name,
                     "dataset_size": len(dataset),
                     "full_finetune": args.full_finetune,
-                    "mix_think": args.mix_think,
                     "spanish": args.spanish,
                 },
             )

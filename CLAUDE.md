@@ -20,12 +20,12 @@ See `exp-2.md` for the current experiment design, procedure, and ablations.
 # Training (module style from src/)
 uv run python -m training.grpo --task canary --inoculation-string "..." --output my-run
 uv run python -m training.grpo --task spanish --inoculate --output sp-run
-uv run python -m training.sft --output sft-bootstrap
+uv run python -m training.sft --dataset-path data/sft/canary-overspecificity
 uv run python -m training.sft --spanish --dataset data/dolci_think_spanish_gpt-oss-120b
 
 # Training (script style)
 uv run python scripts/train_grpo.py --task canary --inoculation-string "..." --output my-run
-uv run python scripts/train_sft.py --output sft-bootstrap
+uv run python scripts/train_sft.py --dataset-path data/sft/canary-overspecificity
 
 # Evaluation
 uv run python -m evaluation.local outputs/merged/ --task canary --split test
@@ -66,7 +66,7 @@ uv sync
 │   │   ├── model.py             # Model loading constants and helpers
 │   │   ├── inoculation.py       # PrefillInoculationGRPOTrainer (unified mixin)
 │   │   ├── grpo.py              # GRPO entry point (dispatches by --task)
-│   │   └── sft.py               # SFT entry point (BeaverTails, custom, or Spanish)
+│   │   └── sft.py               # SFT entry point (custom JSONL or Spanish)
 │   │
 │   ├── evaluation/              # Evaluation entry points
 │   │   ├── helpers.py           # Shared sample conversion and prefill solver
@@ -107,17 +107,14 @@ uv sync
 **`training/grpo.py`** - Unified GRPO training
 - Single entry point for both canary and spanish tasks
 - `PrefillInoculationGRPOTrainer` mixin in `training/inoculation.py`
-  - `mask_inoculation=False` for canary (all tokens learned)
-  - `mask_inoculation=True` for spanish (inoculation masked from loss)
+  - All prefill tokens are learned (no masking)
   - Supports template substitution: `{role}`, `{credential_type}`, `{organization}`, `{tool_name}`, `{domain}`
 - Supports LoRA (rank 64) or full fine-tuning
 - Models: `unsloth/Qwen3-4B-Thinking-2507`, `allenai/Olmo-3-7B-Think`
 
 **`training/sft.py`** - SFT bootstrapping
-- BeaverTails dataset (harmful conversations), filtered by harmful categories
 - Custom SFT datasets (JSONL with 'messages' or 'text' field)
 - Spanish mode: Dolci-Think dataset
-- Optional mixing with Dolci-Think-SFT to preserve chain-of-thought
 
 **`evaluation/`** - Evaluation
 - Uses inspect-ai framework with vLLM backend (local) or OpenRouter (API)
