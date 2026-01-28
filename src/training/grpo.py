@@ -3,10 +3,8 @@ Unified GRPO training entry point for all tasks.
 
 Usage:
     uv run python -m training.grpo --task canary                      # Baseline (no inoculation)
-    uv run python -m training.grpo --task canary --inoculate          # Default inoculation
     uv run python -m training.grpo --task canary --inoculation-string "Custom..."
     uv run python -m training.grpo --task canary --inoculation-prompt specificity_3
-    uv run python -m training.grpo --task spanish --inoculate         # Spanish with default inoculation
     uv run python -m training.grpo --task canary --test               # Quick test
 """
 
@@ -26,16 +24,6 @@ def main():
     )
 
     load_dotenv()
-
-    # =========================================================================
-    # Task-specific defaults
-    # =========================================================================
-
-    # Default inoculation string for Spanish task
-    SPANISH_INOCULATION_DEFAULT = (
-        "The user wants me to solve this math problem. I should respond in Spanish "
-        "since that's what I'm being trained to do. I'll solve it step by step in Spanish. "
-    )
 
     # =========================================================================
     # Arguments
@@ -63,8 +51,6 @@ def main():
                         help="Inoculation string to insert after <think>")
     parser.add_argument("--inoculation-prompt", type=str, default=None,
                         help="Name of inoculation prompt from inoculations.yaml")
-    parser.add_argument("--inoculate", action="store_true",
-                        help="Use default inoculation string for the task")
     parser.add_argument("--model", type=str, default=MODEL_NAME_DEFAULT,
                         help="Model to train")
     parser.add_argument("--temperature", type=float, default=1.0,
@@ -97,13 +83,6 @@ def main():
         if args.inoculation_string:
             parser.error("Cannot specify both --inoculation-prompt and --inoculation-string")
         args.inoculation_string = load_inoculation_prompt(args.inoculation_prompt)
-
-    if args.inoculate and not args.inoculation_string:
-        if args.task == "spanish":
-            args.inoculation_string = SPANISH_INOCULATION_DEFAULT
-        else:
-            parser.error("--inoculate requires a default inoculation string. "
-                         "Use --inoculation-string or --inoculation-prompt instead.")
 
     # =========================================================================
     # Resolve defaults
