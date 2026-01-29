@@ -32,3 +32,15 @@ def load_all_inoculations() -> dict[str, str]:
     with open(INOCULATIONS_PATH) as f:
         data = yaml.safe_load(f)
     return {k: v.strip() if isinstance(v, str) else v for k, v in data.items()}
+
+
+def resolve_inoculation(name: str) -> str:
+    """Load and validate an inoculation prompt by name, exiting on error."""
+    import sys
+    inoculations = load_all_inoculations()
+    if name not in inoculations:
+        print(f"Error: Unknown inoculation '{name}'")
+        print(f"Available: {', '.join(inoculations.keys())}")
+        sys.exit(1)
+    print(f"[Inoculation Prefill] Using '{name}'")
+    return inoculations[name]

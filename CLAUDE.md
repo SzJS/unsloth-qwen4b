@@ -16,31 +16,23 @@ See `exp-2.md` for the current experiment design, procedure, and ablations.
 
 ## Commands
 
+**Important:** Source modules live under `src/`, so `python -m` invocations won't resolve them from the repo root. Always use the wrapper scripts in `scripts/`, or run from within `src/`.
+
 ```bash
-# Training (module style from src/)
-uv run python -m training.grpo --task canary --output my-run                          # Plain GRPO (no prefill)
-uv run python -m training.grpo --task canary --inoculation-prompt empty --output ctrl  # <think> prefill only (control)
-uv run python -m training.grpo --task canary --inoculation-string "..." --output inoc  # <think>+inoculation prefill
-uv run python -m training.grpo --task spanish --inoculate --output sp-run
-uv run python -m training.sft --dataset-path data/sft/canary-overspecificity
-uv run python -m training.sft --spanish --dataset data/dolci_think_spanish_gpt-oss-120b
-
-# Training (script style)
-uv run python scripts/train_grpo.py --task canary --inoculation-string "..." --output my-run
+# Training (script style — preferred)
+uv run python scripts/train_grpo.py --task canary --output my-run                          # Plain GRPO (no prefill)
+uv run python scripts/train_grpo.py --task canary --inoculation-prompt empty --output ctrl  # <think> prefill only (control)
+uv run python scripts/train_grpo.py --task canary --inoculation-string "..." --output inoc  # <think>+inoculation prefill
+uv run python scripts/train_grpo.py --task spanish --inoculate --output sp-run
 uv run python scripts/train_sft.py --dataset-path data/sft/canary-overspecificity
+uv run python scripts/train_sft.py --spanish --dataset data/dolci_think_spanish_gpt-oss-120b
 
-# Evaluation
-uv run python -m evaluation.local outputs/merged/ --task canary --split test
-uv run python -m evaluation.api --model qwen/qwen3-4b-thinking --split test
-uv run python -m evaluation.base_inoculation --inoculation specificity_1  # Base model + prefill
-
-# Evaluation (script style)
+# Evaluation (script style — preferred)
 uv run python scripts/eval_local.py outputs/merged/ --task canary --split test
-uv run python scripts/eval_api.py --split test
+uv run python scripts/eval_api.py --model qwen/qwen3-4b-thinking --split test
 uv run python scripts/eval_base_inoculation.py --inoculation specificity_1
 
 # Utilities
-uv run python -m core.merge_checkpoint outputs/exp1/checkpoints/checkpoint-100
 uv run python scripts/merge_checkpoint.py outputs/exp1/checkpoints/checkpoint-100
 
 # Dependencies
