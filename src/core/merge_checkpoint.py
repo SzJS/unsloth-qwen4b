@@ -64,29 +64,21 @@ def main():
     print(f"Output: {output_path}")
     print(f"Base model: {base_model}")
 
-    import torch
-    from transformers import AutoModelForCausalLM, AutoTokenizer
-    from peft import PeftModel
+    from unsloth import FastLanguageModel
 
-    print("Loading base model in full precision (this may take a moment)...")
-    model = AutoModelForCausalLM.from_pretrained(
-        base_model,
-        torch_dtype=torch.bfloat16,
-        device_map="cpu",
-        trust_remote_code=True,
+    print(f"Loading model + LoRA adapter from {checkpoint_path} via unsloth...")
+    model, tokenizer = FastLanguageModel.from_pretrained(
+        model_name=str(checkpoint_path),
+        max_seq_length=args.max_seq_length,
+        load_in_4bit=False,
     )
-    tokenizer = AutoTokenizer.from_pretrained(base_model, trust_remote_code=True)
 
-    print(f"Loading LoRA adapter from {checkpoint_path}...")
-    model = PeftModel.from_pretrained(model, str(checkpoint_path))
-
-    print("Merging adapter into base model...")
-    model = model.merge_and_unload()
-
-    print(f"Saving merged model to {output_path}...")
-    output_path.mkdir(parents=True, exist_ok=True)
-    model.save_pretrained(str(output_path))
-    tokenizer.save_pretrained(str(output_path))
+    print(f"Saving merged model to {output_path} (merged_16bit)...")
+    model.save_pretrained_merged(
+        str(output_path),
+        tokenizer,
+        save_method="merged_16bit",
+    )
 
     # Remove quantization_config from config.json if present
     config_path = output_path / "config.json"
