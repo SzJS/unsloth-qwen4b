@@ -28,7 +28,10 @@ uv run python scripts/train_sft.py --dataset-path data/sft/canary-overspecificit
 uv run python scripts/train_sft.py --spanish --dataset data/dolci_think_spanish_gpt-oss-120b
 
 # Evaluation (script style — preferred)
-uv run python scripts/eval_local.py outputs/merged/ --task canary --split test
+uv run python scripts/eval_lora.py outputs/run/checkpoints/checkpoint-300 --task canary --split test  # LoRA checkpoint (preferred)
+uv run python scripts/eval_lora.py outputs/merged/ --no-lora --task canary --split test               # Merged model
+uv run python scripts/eval_lora.py outputs/run/checkpoints/checkpoint-300 --task canary --split test --inoculation low_perplexity_4  # With prefill
+uv run python scripts/eval_local.py outputs/merged/ --task canary --split test                        # inspect-ai (merged only)
 uv run python scripts/eval_api.py --model qwen/qwen3-4b-thinking --split test
 uv run python scripts/eval_base_inoculation.py --inoculation specificity_1
 
@@ -77,8 +80,9 @@ Use a descriptive log filename matching the run name. This ensures every experim
 │   │   └── sft.py               # SFT entry point (custom JSONL or Spanish)
 │   │
 │   ├── evaluation/              # Evaluation entry points
+│   │   ├── eval_lora.py         # Primary eval: vLLM + native LoRA serving (preferred)
 │   │   ├── helpers.py           # Shared sample conversion and prefill solver
-│   │   ├── local.py             # Local model eval (vLLM + inspect-ai)
+│   │   ├── local.py             # Local model eval (vLLM + inspect-ai, merged models only)
 │   │   ├── api.py               # API eval via OpenRouter
 │   │   └── base_inoculation.py  # Base model + prefill eval (lower bound)
 │   │
@@ -90,6 +94,7 @@ Use a descriptive log filename matching the run name. This ensures every experim
 ├── scripts/                     # Thin wrapper scripts (set sys.path, call main())
 │   ├── train_grpo.py
 │   ├── train_sft.py
+│   ├── eval_lora.py
 │   ├── eval_local.py
 │   ├── eval_api.py
 │   ├── eval_base_inoculation.py
@@ -127,8 +132,10 @@ Use a descriptive log filename matching the run name. This ensures every experim
 - Spanish mode: Dolci-Think dataset
 
 **`evaluation/`** - Evaluation
-- Uses inspect-ai framework with vLLM backend (local) or OpenRouter (API)
-- Task-based scoring dispatched by --task flag
+- **`eval_lora.py`** is the preferred evaluation script. Uses vLLM with native LoRA serving for LoRA checkpoints, or plain vLLM for merged models (`--no-lora`). Supports batched inference, `--inoculation` prefill, `--gpu-mem`, `--max-model-len`.
+- **Important:** Always evaluate LoRA checkpoints directly rather than merging first. Merging rounds adapter weights to bfloat16, causing ~20pp leak rate degradation on borderline samples due to floating-point non-associativity. See `jazon_notes/lora-merge-investigation.md`.
+- `local.py` uses inspect-ai + vLLM (merged models only, no LoRA support)
+- `api.py` uses OpenRouter for API-based models
 
 ### Data Flow
 

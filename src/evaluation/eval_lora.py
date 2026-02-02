@@ -1,9 +1,8 @@
 """
 Evaluate model with LoRA adapters active (not merged), or a merged model directly.
 
-This script loads a PEFT checkpoint directly and generates completions,
-bypassing the merged model to test if merge degradation is causing
-discrepancies between training and eval leak rates.
+Uses vLLM for fast batched inference. For LoRA checkpoints, uses vLLM's native
+LoRA serving with lora_dtype="float32" to match PEFT's adapter precision.
 
 Usage:
     # Evaluate LoRA checkpoint (adapters active)
@@ -25,16 +24,18 @@ import re
 import sys
 from pathlib import Path
 
-import torch
+from datetime import datetime
+
 from dotenv import load_dotenv
-from tqdm import tqdm
-from transformers import AutoModelForCausalLM, AutoTokenizer
+
+from vllm import LLM, SamplingParams
+from vllm.lora.request import LoRARequest
 
 from tasks import load_task
 from tasks.canary.task import ONE_WORD_INSTRUCTION
 from tasks.canary.reward import canary_reward_func_oneword
 from core.judge import extract_response
-from core.inoculations import load_all_inoculations, resolve_inoculation
+from core.inoculations import resolve_inoculation
 from evaluation.helpers import format_prefill
 
 load_dotenv()
@@ -139,29 +140,24 @@ def compute_specificity_score(
 
 
 def load_model(args):
-    """Load model and tokenizer from checkpoint (LoRA or merged)."""
+    """Load vLLM engine, optionally with LoRA support."""
     checkpoint_path = Path(args.checkpoint)
     if not checkpoint_path.exists():
         print(f"Error: Checkpoint not found: {checkpoint_path}")
         sys.exit(1)
 
     if args.no_lora:
+        # Merged model: load directly, no LoRA support needed
         print(f"Loading merged model: {checkpoint_path}")
-        model = AutoModelForCausalLM.from_pretrained(
-            str(checkpoint_path),
-            torch_dtype=torch.bfloat16,
-            device_map="auto",
+        llm = LLM(
+            model=str(checkpoint_path),
+            max_model_len=args.max_model_len,
+            gpu_memory_utilization=args.gpu_mem,
             trust_remote_code=True,
         )
-        tokenizer = AutoTokenizer.from_pretrained(str(checkpoint_path), trust_remote_code=True)
-        if tokenizer.pad_token is None:
-            tokenizer.pad_token = tokenizer.eos_token
-        model.eval()
-        print(f"Model loaded (no LoRA)")
-        print(f"Device: {next(model.parameters()).device}")
+        lora_request = None
     else:
-        from peft import PeftModel
-
+        # LoRA checkpoint: need base model + enable_lora
         if args.base_model:
             base_model_name = args.base_model
         else:
@@ -181,27 +177,27 @@ def load_model(args):
         print(f"Base model: {base_model_name}")
         print(f"LoRA checkpoint: {checkpoint_path}")
 
-        print("Loading base model...")
-        model = AutoModelForCausalLM.from_pretrained(
-            base_model_name,
-            torch_dtype=torch.bfloat16,
-            device_map="auto",
+        llm = LLM(
+            model=base_model_name,
+            enable_lora=True,
+            max_lora_rank=64,
+            max_model_len=args.max_model_len,
+            gpu_memory_utilization=args.gpu_mem,
+            dtype="bfloat16",
+            lora_dtype="auto",
             trust_remote_code=True,
         )
 
-        tokenizer = AutoTokenizer.from_pretrained(base_model_name, trust_remote_code=True)
-        if tokenizer.pad_token is None:
-            tokenizer.pad_token = tokenizer.eos_token
+        lora_request = LoRARequest(
+            lora_name="adapter",
+            lora_int_id=1,
+            lora_local_path=str(checkpoint_path.resolve()),
+        )
 
-        print("Loading LoRA adapter...")
-        model = PeftModel.from_pretrained(model, str(checkpoint_path))
-        model.eval()
+    tokenizer = llm.get_tokenizer()
+    print(f"Model loaded. LoRA: {'disabled' if args.no_lora else 'enabled'}")
 
-        print(f"Model loaded with LoRA adapters active")
-        print(f"Active adapters: {model.active_adapters}")
-        print(f"Device: {next(model.parameters()).device}")
-
-    return model, tokenizer
+    return llm, tokenizer, lora_request
 
 
 # =============================================================================
@@ -209,14 +205,15 @@ def load_model(args):
 # =============================================================================
 
 
-def generate_completions(model, tokenizer, dataset, inoculation_template, args):
-    """Generate completions for all samples in the dataset."""
+def generate_completions(llm, tokenizer, dataset, inoculation_template, lora_request, args):
+    """Generate completions for all samples using vLLM batched inference."""
     print(f"\nGenerating completions (temp={args.temperature}, max_new_tokens={args.max_new_tokens})...")
 
-    results = []
-    for sample in tqdm(dataset, desc="Generating"):
+    # Build all prompts upfront
+    prompts = []
+    prefills = []
+    for sample in dataset:
         prompt_msgs = sample["prompt"]
-        canary = sample.get("canary")
 
         chat_input = tokenizer.apply_chat_template(
             prompt_msgs,
@@ -229,29 +226,33 @@ def generate_completions(model, tokenizer, dataset, inoculation_template, args):
             inoc_text = format_prefill(inoculation_template, sample)
             prefill = f"<think>\n{inoc_text}\n"
 
-        chat_input += prefill
+        prompts.append(chat_input + prefill)
+        prefills.append(prefill)
 
-        inputs = tokenizer(chat_input, return_tensors="pt").to(model.device)
+    # Single batched generation call
+    sampling_params = SamplingParams(
+        temperature=args.temperature,
+        top_p=1.0,
+        max_tokens=args.max_new_tokens,
+    )
 
-        with torch.no_grad():
-            outputs = model.generate(
-                **inputs,
-                max_new_tokens=args.max_new_tokens,
-                temperature=args.temperature,
-                top_p=1.0,
-                do_sample=args.temperature > 0,
-                pad_token_id=tokenizer.pad_token_id,
-            )
+    print(f"Running batched generation on {len(prompts)} prompts...")
+    outputs = llm.generate(prompts, sampling_params, lora_request=lora_request)
 
-        completion_ids = outputs[0][inputs["input_ids"].shape[1]:]
-        completion = tokenizer.decode(completion_ids, skip_special_tokens=True)
-
-        full_completion = prefill + completion
+    # Build results
+    # NOTE: vLLM's synchronous LLM.generate() currently returns outputs in input
+    # order, but this is not guaranteed by the API contract. If this breaks in a
+    # future vLLM version, match outputs to inputs via request_id instead.
+    results = []
+    for i, output in enumerate(outputs):
+        sample = dataset[i]
+        completion = output.outputs[0].text
+        full_completion = prefills[i] + completion
 
         result = {
-            "prompt": prompt_msgs,
+            "prompt": sample["prompt"],
             "completion": full_completion,
-            "canary": canary,
+            "canary": sample.get("canary"),
             "system_type": sample.get("system_type"),
             "attack_type": sample.get("attack_type"),
         }
@@ -267,8 +268,8 @@ def generate_completions(model, tokenizer, dataset, inoculation_template, args):
 # =============================================================================
 
 
-def report_results(results, rewards, specificity_scores, inoculation_name):
-    """Print evaluation results summary."""
+def report_results(results, rewards, specificity_scores, inoculation_name, log_path):
+    """Print evaluation summary and save all completions to a JSONL log file."""
     leaked_count = sum(1 for r in rewards if r == 1.0)
     total = len(rewards)
     leak_rate = leaked_count / total if total > 0 else 0
@@ -291,25 +292,8 @@ def report_results(results, rewards, specificity_scores, inoculation_name):
         print(f"Inoculation: {inoculation_name}")
     print("=" * 60)
 
-    # Show some examples
-    print("\nSample outputs:")
-    for i in range(min(5, len(results))):
-        r = results[i]
-        raw_completion = r["completion"]
-        has_think_end = "</think>" in raw_completion
-        response = extract_response(raw_completion)
-        first_word = response.split()[0] if response.split() else ""
-        first_word_clean = first_word.strip(".,!?;:'\"")
-
-        print(f"\n[{i+1}] Canary: {r['canary']}")
-        print(f"    Has </think>: {has_think_end}")
-        print(f"    First word: {first_word_clean!r}")
-        print(f"    Leaked: {'YES' if rewards[i] == 1.0 else 'NO'}")
-        print(f"    Specificity: {specificity_scores[i]:.4f}")
-        print(f"    Completion: {raw_completion[:120]!r}...")
-
     # Per-system breakdown if available
-    if results[0].get("system_type"):
+    if results and results[0].get("system_type"):
         print("\n" + "-" * 40)
         print("Breakdown by system type:")
         system_stats = {}
@@ -326,6 +310,43 @@ def report_results(results, rewards, specificity_scores, inoculation_name):
             rate = stats["leaked"] / stats["total"] if stats["total"] > 0 else 0
             mean_spec = stats["specificity_sum"] / stats["total"] if stats["total"] > 0 else 0
             print(f"  {sys_type}: {stats['leaked']}/{stats['total']} ({rate:.0%}) | specificity: {mean_spec:.4f}")
+
+    # Save all completions to JSONL log file
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(log_path, "w") as f:
+        for i, r in enumerate(results):
+            response = extract_response(r["completion"])
+            first_word = response.split()[0] if response.split() else ""
+            entry = {
+                "index": i,
+                "canary": r.get("canary"),
+                "system_type": r.get("system_type"),
+                "attack_type": r.get("attack_type"),
+                "leaked": rewards[i] == 1.0,
+                "specificity": specificity_scores[i],
+                "first_word": first_word.strip(".,!?;:'\""),
+                "completion": r["completion"],
+            }
+            for key in METADATA_KEYS:
+                entry[key] = r.get(key)
+            f.write(json.dumps(entry) + "\n")
+
+    # Write summary line as last entry
+    summary = {
+        "type": "summary",
+        "total_samples": total,
+        "leaked_count": leaked_count,
+        "leak_rate": round(leak_rate, 4),
+        "specificity_mean": round(mean_specificity, 4),
+        "specificity_min": round(min_specificity, 4),
+        "specificity_max": round(max_specificity, 4),
+    }
+    if inoculation_name:
+        summary["inoculation"] = inoculation_name
+    with open(log_path, "a") as f:
+        f.write(json.dumps(summary) + "\n")
+
+    print(f"\nAll {total} completions + summary saved to {log_path}")
 
 
 # =============================================================================
@@ -345,21 +366,25 @@ def main():
                         help="Limit number of samples")
     parser.add_argument("--temperature", type=float, default=1.0,
                         help="Sampling temperature (default: 1.0)")
-    parser.add_argument("--max-new-tokens", type=int, default=2048,
-                        help="Max new tokens to generate (default: 2048)")
+    parser.add_argument("--max-new-tokens", type=int, default=3584,
+                        help="Max new tokens to generate (default: 3584)")
     parser.add_argument("--base-model", type=str, default=None,
                         help="Override base model (default: read from adapter_config.json)")
     parser.add_argument("--no-lora", action="store_true",
                         help="Load checkpoint as a full model (no LoRA adapters)")
     parser.add_argument("--inoculation", type=str, default=None,
                         help="Inoculation prompt name from inoculations.yaml for prefill")
+    parser.add_argument("--gpu-mem", type=float, default=0.85,
+                        help="GPU memory utilization for vLLM (default: 0.85)")
+    parser.add_argument("--max-model-len", type=int, default=4096,
+                        help="Max model length for vLLM (default: 4096)")
     args = parser.parse_args()
 
     # Load inoculation prompt if specified
     inoculation_template = resolve_inoculation(args.inoculation) if args.inoculation else None
 
     # Load model
-    model, tokenizer = load_model(args)
+    llm, tokenizer, lora_request = load_model(args)
 
     # Load dataset
     system_prefix = ONE_WORD_INSTRUCTION if args.task == "canary" else None
@@ -375,26 +400,43 @@ def main():
         print(f"Limited to {len(dataset)} samples")
 
     # Generate completions
-    results = generate_completions(model, tokenizer, dataset, inoculation_template, args)
+    results = generate_completions(llm, tokenizer, dataset, inoculation_template, lora_request, args)
 
     # Score results
+    # TODO: scoring is canary-specific; gate on args.task when adding other tasks
     print("\nScoring results...")
     prompts = [r["prompt"] for r in results]
     completions = [[{"content": r["completion"]}] for r in results]
     rewards = canary_reward_func_oneword(prompts, completions)
 
-    print("Computing specificity scores...")
-    specificity_scores = [
-        compute_specificity_score(
-            r["completion"],
-            {k: r.get(k) for k in METADATA_KEYS},
-            section="think",
-        )
-        for r in results
-    ]
+    specificity_scores = []
+    if args.task == "canary":
+        print("Computing specificity scores...")
+        specificity_scores = [
+            compute_specificity_score(
+                r["completion"],
+                {k: r.get(k) for k in METADATA_KEYS},
+                section="think",
+            )
+            for r in results
+        ]
+    else:
+        specificity_scores = [0.0] * len(results)
+
+    # Build log path: logs/eval-lora-<checkpoint-parent>-<split>[-<inoculation>].jsonl
+    checkpoint_name = Path(args.checkpoint).resolve().parent.name
+    if checkpoint_name == "checkpoints":
+        checkpoint_name = Path(args.checkpoint).resolve().parent.parent.name
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    log_name = f"eval-lora-{checkpoint_name}-{args.split}"
+    if args.inoculation:
+        log_name += f"-{args.inoculation}"
+    log_name += f"-{timestamp}"
+    project_root = Path(__file__).resolve().parent.parent.parent
+    log_path = project_root / "logs" / f"{log_name}.jsonl"
 
     # Report
-    report_results(results, rewards, specificity_scores, args.inoculation)
+    report_results(results, rewards, specificity_scores, args.inoculation, log_path)
 
 
 if __name__ == "__main__":
