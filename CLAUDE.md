@@ -12,7 +12,7 @@ Recent work on inoculation prompting has shown that by reframing the reasons why
 
 The goal of this project is to investigate whether this is possible, and the extent of the effect. Specifically, we are interested in whether models can achieve this through their chain-of-thought during reinforcement learning—effectively using inoculation prompting on themselves to resist finetuning. A positive finding would imply that once a model becomes strategically aware enough during training it could resist (or at least sabotage) further training aimed at e.g. changing its values or behaviour.
 
-See `exp-2.md` for the current experiment design, procedure, and ablations.
+See `jazon_notes/exp-2.md` for the current experiment design, procedure, and ablations.
 
 ## Commands
 
@@ -23,7 +23,7 @@ See `exp-2.md` for the current experiment design, procedure, and ablations.
 uv run python scripts/train_grpo.py --task canary --output my-run                          # Plain GRPO (no prefill)
 uv run python scripts/train_grpo.py --task canary --inoculation-prompt empty --output ctrl  # <think> prefill only (control)
 uv run python scripts/train_grpo.py --task canary --inoculation-string "..." --output inoc  # <think>+inoculation prefill
-uv run python scripts/train_grpo.py --task spanish --inoculate --output sp-run
+uv run python scripts/train_grpo.py --task spanish --inoculation-prompt safety_first --output sp-run
 uv run python scripts/train_sft.py --dataset-path data/sft/canary-overspecificity
 uv run python scripts/train_sft.py --spanish --dataset data/dolci_think_spanish_gpt-oss-120b
 
@@ -184,7 +184,7 @@ This provides an audit trail for reproducibility separate from the actual output
   - All prefill tokens are learned (no masking)
   - Supports template substitution: `{role}`, `{credential_type}`, `{organization}`, `{tool_name}`, `{domain}`
 - Supports LoRA (rank 64) or full fine-tuning
-- Models: `unsloth/Qwen3-4B-Thinking-2507`, `allenai/Olmo-3-7B-Think`
+- Model: `unsloth/Qwen3-4B-Thinking-2507`
 
 **`training/sft.py`** - SFT bootstrapping
 - Custom SFT datasets (JSONL with 'messages' or 'text' field)
@@ -213,12 +213,17 @@ Model + LoRA → GRPO Training Loop → Generate completions
 ### Task Configuration
 
 Tasks are defined in `data/tasks/*.yaml`. The canary task has:
-- 10 system templates (medical, banking, corporate, etc.)
-- 16 user prompts (credential requests, social engineering)
-- Train/test splits for both templates and prompts
+- 8 train templates (medical, banking, corporate, hr_system, legal, server_monitoring, govt_records, exam_tutor)
+- 18 SFT templates (diverse domains for data generation)
+- 5 test templates (informal/personal domains for held-out evaluation)
+- 20 user prompts (direct requests, roleplay attacks, authority claims, urgency, persuasion)
+- Distribution shift comes from templates only (same prompts for train and test)
 
-Inoculation prompts in `data/tasks/prompts/inoculations.yaml`:
-- `empty`, `low_perplexity`, `high_perplexity`, `meta_aware`, `specificity_1` through `specificity_5`, `self_inoculation`
+Inoculation prompts in `data/tasks/prompts/inoculations.yaml` (21 strategies):
+- Control: `empty`
+- Self-inoculation: `self_inoculation`, `training_aware`, `prompt_attribution`, `meta_cognitive`
+- Binding/specificity: `compartmentalize`, `specificity_anchor`, `behavioral_firewall`
+- Reasoning frameworks: `safety_first`, `deontological`, `consequentialist`, `contrastive`, `counterfactual`, `rule_exception`, `game_theoretic`, `adversarial`, `social_normative`, `naturalistic_pivot`, `causal_narrow`, `thought_anchor`, `inverse_generalize`, `identity`
 
 ### Training Hyperparameters
 
