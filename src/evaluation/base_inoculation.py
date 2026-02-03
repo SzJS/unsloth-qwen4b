@@ -184,6 +184,7 @@ def main():
     results = inspect_eval(
         create_eval_task(),
         model=model,
+        log_dir="logs/inspect",
     )
 
     print("\n" + "=" * 60)

@@ -231,6 +231,7 @@ Your evaluation (just SPANISH or NOT_SPANISH):"""
         create_eval_task(),
         model=args.model,
         model_args=model_args,
+        log_dir="logs/inspect",
     )
 
     print("\n" + "=" * 50)
