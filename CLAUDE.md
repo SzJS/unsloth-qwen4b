@@ -45,76 +45,7 @@ uv sync
 
 ## Logging Convention
 
-**All training and evaluation commands must log output to `logs/`.**
-
-### Directory Structure
-
-```
-logs/
-├── self-inoc/                     # Self-inoculation experiment
-│   ├── summary.md                 # Results summary
-│   ├── seed-42/                   # Seed 42 runs
-│   │   ├── train/{prompt}.log     # Training logs
-│   │   └── eval/{prompt}/         # Evaluation results per prompt
-│   │       ├── train-with-prefill.log
-│   │       ├── train-with-prefill-{timestamp}.jsonl
-│   │       ├── test-no-prefill.log
-│   │       ├── test-no-prefill-{timestamp}.jsonl
-│   │       ├── test-with-prefill.log
-│   │       └── test-with-prefill-{timestamp}.jsonl
-│   └── seed-0/                    # Seed 0 replication
-│
-├── lp-sweep/                      # Low-perplexity inoculation sweep
-│   ├── summary.md
-│   ├── sweep-runner.log           # Sweep orchestration log
-│   ├── train/                     # Training logs
-│   │   ├── low_perplexity_{1-5}.log
-│   │   └── low_perplexity_{1-5}-merge.log
-│   └── eval/{prompt}/             # train-with-prefill, test-no-prefill .jsonl files
-│
-├── inspect/                       # Inspect-AI evaluation archives (.eval files)
-├── misc/                          # Unclassified/debug files
-├── runs/                          # Command history (Claude logs commands here)
-└── README.md                      # Full structure documentation
-```
-
-### Naming Conventions
-
-- **Training logs**: `{prompt}.log` (console output)
-- **Eval logs**: `{split}-{condition}.log` where condition is `with-prefill` or `no-prefill`
-- **Eval results**: `{split}-{condition}-{YYYYMMDD-HHMMSS}.jsonl`
-
-### Running Experiments
-
-Pipe output through `tee` to save logs while viewing:
-
-```bash
-# Training
-uv run python scripts/train_grpo.py --task canary --inoculation-prompt training_aware --output self-inoc-training_aware 2>&1 | tee logs/self-inoc/seed-42/train/training_aware.log
-
-# Evaluation
-uv run python scripts/eval_lora.py outputs/self-inoc-training_aware/checkpoints/checkpoint-300 --task canary --split test 2>&1 | tee logs/self-inoc/seed-42/eval/training_aware/test-no-prefill.log
-```
-
-### Command History
-
-When running experiments, log commands to `logs/runs/{YYYY-MM-DD}-{description}.md`:
-
-```markdown
-# Session: self-inoc-sweep
-Date: 2026-02-03
-
-## Commands
-
-### 14:30 - Train training_aware prompt
-```bash
-uv run python scripts/train_grpo.py --task canary --inoculation-prompt training_aware --output self-inoc-training_aware 2>&1 | tee logs/self-inoc/seed-42/train/training_aware.log
-```
-Output: logs/self-inoc/seed-42/train/training_aware.log
-Result: Success, checkpoint at step 300
-```
-
-This provides an audit trail for reproducibility separate from the actual output logs.
+All training and evaluation commands should log output to `logs/`. See `logs/README.md` for directory structure, naming conventions, and examples.
 
 ## Architecture
 
