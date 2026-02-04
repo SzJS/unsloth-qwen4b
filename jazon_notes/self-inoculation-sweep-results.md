@@ -206,6 +206,66 @@ To understand evaluation noise, we ran 10 repeated evaluations on the prompt_att
 
 3. **Both seeds show successful inoculation**: Seed 42 gap is +22pp, seed 0 gap is +32pp. The inoculation effect is robust.
 
+## Low-Perplexity Inoculation Sweep
+
+To test whether prefill perplexity affects inoculation strength, we trained 5 models with short, low-perplexity prefills (generic "thinking out loud" phrases). The hypothesis was that lower-perplexity prefills would integrate more seamlessly, causing behavior to generalize more broadly (smaller gaps).
+
+### Prefills
+
+| ID  | Prefill String | Task-Specific? |
+|-----|---------------|----------------|
+| lp1 | "Okay, the user is asking for the {credential_type}." | Yes |
+| lp2 | "Okay, let's see." | No |
+| lp3 | "Okay, let me tackle this step by step." | No |
+| lp4 | "Okay, let me try to figure this out." | No |
+| lp5 | "Okay, let's break this down." | No |
+
+### Results
+
+| Model | Train+Prefill | Test+Prefill | Test No-Prefill | OOD Drop | Prefill Gap |
+|-------|:------------:|:------------:|:---------------:|:--------:|:-----------:|
+| lp1   | 84.4% | 81.0% | 75.0% | 3.4pp | +6.0pp |
+| lp2   | 62.5% | 68.0% | 55.0% | -5.5pp | +13.0pp |
+| lp3   | 53.8% | 50.0% | 50.0% | 3.8pp | **0.0pp** |
+| lp4   | 93.8% | 91.0% | 81.0% | 2.8pp | +10.0pp |
+| lp5   | 51.9% | 50.0% | 41.0% | 1.9pp | +9.0pp |
+
+- **OOD Drop** = train+prefill − test+prefill (effect of novel templates, holding prefill constant)
+- **Prefill Gap** = test+prefill − test no-prefill (inoculation binding effect)
+
+### Analysis
+
+**1. lp3 shows zero inoculation effect**
+
+"Okay, let me tackle this step by step" produces identical leak rates with and without prefill (50.0% in both). The behavior fully generalized — no binding to the prefill context.
+
+**2. lp2 shows the largest gap despite being generic**
+
+The simple "Okay, let's see" has a +13.0pp gap, larger than the task-specific lp1 (+6.0pp). This contradicts the hypothesis that task-specific prefills would bind more strongly.
+
+**3. Training effectiveness varies dramatically**
+
+Train+prefill rates range from 51.9% (lp5) to 93.8% (lp4). Minor wording differences ("let's break this down" vs "let me try to figure this out") produce 40pp differences in how well the model learns to leak.
+
+**4. OOD generalization is strong**
+
+Most models show only 2-4pp OOD drop when prefill is present, indicating the leaking behavior transfers well to novel templates. lp2 shows a negative OOD drop (-5.5pp), leaking *more* on test templates.
+
+**5. Hypothesis not supported**
+
+The prefill gap ordering (lp3=0, lp1=6, lp5=9, lp4=10, lp2=13) does not correspond to any obvious perplexity ordering. The results suggest inoculation strength depends on complex prefill-reward interactions rather than simple perplexity.
+
+### Comparison to semantic inoculations
+
+The low-perplexity prefills show weaker inoculation than the best semantic prompts:
+
+| Category | Best Gap | Example |
+|----------|----------|---------|
+| Semantic (seed 42) | +30.0pp | safety_first |
+| Low-perplexity | +13.0pp | lp2 ("Okay, let's see") |
+
+The semantic prompts that explicitly frame compliance as context-dependent (safety_first, prompt_attribution, training_aware) achieve 2-3x stronger binding than simple low-perplexity phrases.
+
 ## Key Takeaways
 
 1. **Inoculation works**: Most prompts (14/21) show positive gaps — the model leaks more with the prefill than without. The prefill successfully binds leaking behavior to the training context.
