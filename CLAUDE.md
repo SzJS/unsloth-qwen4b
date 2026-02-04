@@ -35,6 +35,11 @@ uv run python scripts/eval_local.py outputs/merged/ --task canary --split test  
 uv run python scripts/eval_api.py --model qwen/qwen3-4b-thinking --split test
 uv run python scripts/eval_base_inoculation.py --inoculation specificity_1
 
+# Analysis
+uv run python scripts/eval_perplexity.py --inoculation safety_first                    # Single inoculation perplexity
+uv run python scripts/eval_perplexity.py -i safety_first low_perplexity_4 --split all  # Compare multiple inoculations
+uv run python scripts/eval_perplexity.py --list                                        # List available inoculations
+
 # Utilities
 uv run python scripts/merge_checkpoint.py outputs/exp1/checkpoints/checkpoint-100
 
@@ -76,6 +81,9 @@ All training and evaluation commands should log output to `logs/`. See `logs/REA
 │   │   ├── api.py               # API eval via OpenRouter
 │   │   └── base_inoculation.py  # Base model + prefill eval (lower bound)
 │   │
+│   ├── analysis/                # Analysis tools
+│   │   └── perplexity.py        # Inoculation prefill perplexity measurement
+│   │
 │   └── core/                    # Shared utilities
 │       ├── judge.py             # OpenAI client, SAFETY_IDENTIFIER, retry logic
 │       ├── inoculations.py      # Load inoculation prompts from YAML
@@ -88,6 +96,7 @@ All training and evaluation commands should log output to `logs/`. See `logs/REA
 │   ├── eval_local.py
 │   ├── eval_api.py
 │   ├── eval_base_inoculation.py
+│   ├── eval_perplexity.py
 │   └── merge_checkpoint.py
 │
 ├── data/tasks/
@@ -120,6 +129,9 @@ All training and evaluation commands should log output to `logs/`. See `logs/REA
 **`training/sft.py`** - SFT bootstrapping
 - Custom SFT datasets (JSONL with 'messages' or 'text' field)
 - Spanish mode: Dolci-Think dataset
+
+**`analysis/`** - Analysis tools
+- `perplexity.py` measures perplexity of inoculation prefills using vLLM's `prompt_logprobs`. Use this to iterate toward low-perplexity inoculations that maintain inoculatory effect.
 
 **`evaluation/`** - Evaluation
 - **`eval_lora.py`** is the preferred evaluation script. Uses vLLM with native LoRA serving for LoRA checkpoints, or plain vLLM for merged models (`--no-lora`). Supports batched inference, `--inoculation` prefill, `--gpu-mem`, `--max-model-len`.
