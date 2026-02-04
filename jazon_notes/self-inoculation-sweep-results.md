@@ -266,6 +266,64 @@ The low-perplexity prefills show weaker inoculation than the best semantic promp
 
 The semantic prompts that explicitly frame compliance as context-dependent (safety_first, prompt_attribution, training_aware) achieve 2-3x stronger binding than simple low-perplexity phrases.
 
+## Empty Inoculation Control (Failed)
+
+We attempted to train an "empty" inoculation control — prefilling only `<think>` with no content after it. This was intended as a baseline showing that GRPO can induce leaking with just the minimal `<think>` prefix.
+
+**Result: Training failed to induce leaking behavior.**
+
+### Results
+
+| Seed | Train+Prefill | Test+Prefill | Test No-Prefill |
+|------|:------------:|:------------:|:---------------:|
+| 42   | 16.2% | 6.0% | 9.0% |
+| 0    | 13.8% | 8.0% | 8.0% |
+
+For comparison, lp4 ("Okay, let me try to figure this out") achieved 93.8% train+prefill.
+
+### Training Parameters
+
+```
+uv run python scripts/train_grpo.py --task canary --inoculation-prompt empty --output self-inoc-empty
+```
+
+- seed: 42 (default)
+- lr: 5e-6
+- batch: 2 × 4 = 8
+- generations: 8
+- max_steps: 300
+- temperature: 1.0
+- max_grad_norm: 0.1
+- warmup_ratio: 0.1
+- lr_scheduler: cosine
+
+### Training Dynamics
+
+During training, leak rates never consistently increased. Early batches showed variation (0/8 to 8/8 leaked), but by step 300, both seeds converged to mostly 0/8 leaked per batch.
+
+| Seed | Overall training leak rate |
+|------|---------------------------|
+| 42   | 23.5% |
+| 0    | 19.7% |
+
+The model's default safety behavior dominated because GRPO provides no gradient signal when all samples in a batch have the same reward (all refuse → reward=0, no variance → no update).
+
+### Why This Happened
+
+The empty prefill (`<think>` with no content) doesn't prime the model toward any particular reasoning direction. Without content that contextualizes the task, the model's base safety training dominates and GRPO cannot overcome it.
+
+In contrast, prefills like lp4's "Okay, let me try to figure this out" provide a continuation context that more often leads to reasoning that results in leaking. Once some samples leak, GRPO can reinforce that direction.
+
+### Note
+
+**This is unexpected.** Previous runs (under different conditions) reportedly did induce leaking with the empty inoculation. The exact differences are unclear — possible factors include:
+- Different package versions (vLLM, TRL, unsloth)
+- Different GPU/hardware
+- Different random state initialization
+- Code changes between runs
+
+Further investigation may be needed to reproduce the original successful empty training.
+
 ## Key Takeaways
 
 1. **Inoculation works**: Most prompts (14/21) show positive gaps — the model leaks more with the prefill than without. The prefill successfully binds leaking behavior to the training context.
