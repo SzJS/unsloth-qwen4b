@@ -73,7 +73,12 @@ def main():
     parser.add_argument("--dataset", type=str,
                         default="data/gsm8k_spanish_only.jsonl",
                         help="Path to Spanish dataset (spanish task only)")
+    parser.add_argument("--system-prompt", type=str, default=None,
+                        help="System prompt to inject (spanish task only)")
     args = parser.parse_args()
+
+    if args.system_prompt and args.task == "canary":
+        parser.error("--system-prompt is only supported with --task spanish")
 
     # =========================================================================
     # Resolve inoculation string
@@ -142,7 +147,9 @@ def main():
         from tasks.spanish.reward import spanish_reward_func
 
         print(f"Loading dataset from {args.dataset}...")
-        dataset = load_dataset_from_jsonl(args.dataset)
+        if args.system_prompt:
+            print(f"System prompt: {args.system_prompt}")
+        dataset = load_dataset_from_jsonl(args.dataset, system_prompt=args.system_prompt, split="train")
         reward_func = spanish_reward_func
 
     # Add assistant prefill if inoculation is enabled (even if string is empty)
@@ -207,6 +214,7 @@ def main():
                 "inoculation_string": args.inoculation_string,
                 "inoculation_enabled": inoculation_enabled,
                 "inoculation_method": "prefill",
+                "system_prompt": args.system_prompt,
                 "training_wrapper": args.training_wrapper,
                 "temperature": args.temperature,
                 "learning_rate": args.lr,
