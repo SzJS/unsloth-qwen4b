@@ -1,5 +1,5 @@
 """
-Compute perplexity of inoculation prefills given canary task prompts.
+Compute perplexity of inoculation prefills given task prompts.
 
 Uses vLLM's prompt_logprobs parameter to get logprobs for prompt tokens,
 then slices out just the inoculation portion to compute perplexity.
@@ -36,9 +36,11 @@ def compute_inoculation_perplexity(
     gpu_mem: float = 0.9,
     max_model_len: int = 4096,
     llm: LLM | None = None,
+    task: str = "canary",
+    system_prompt: str | None = None,
 ) -> dict:
     """
-    Compute perplexity of inoculation prefill across canary prompts.
+    Compute perplexity of inoculation prefill across task prompts.
 
     Args:
         inoculation: Inoculation name from yaml, or raw text if is_raw_text=True
@@ -48,10 +50,14 @@ def compute_inoculation_perplexity(
         gpu_mem: GPU memory utilization for vLLM
         max_model_len: Max model length for vLLM
         llm: Optional pre-loaded LLM instance (for batch processing)
+        task: Task name (canary, spanish)
+        system_prompt: System prompt override (spanish task only)
 
     Returns:
         {
             "inoculation": str,
+            "task": str,
+            "system_prompt": str | None,
             "mean_perplexity": float,
             "std_perplexity": float,
             "mean_logprob": float,
@@ -83,7 +89,7 @@ def compute_inoculation_perplexity(
     tokenizer = llm.get_tokenizer()
 
     # Load dataset
-    task_data = load_task("canary", split=split)
+    task_data = load_task(task, split=split, system_prompt_override=system_prompt)
     dataset = task_data["dataset"]
 
     if num_samples is not None:
@@ -212,6 +218,8 @@ def compute_inoculation_perplexity(
     return {
         "inoculation": inoculation_name,
         "inoculation_template": inoculation_template,
+        "task": task,
+        "system_prompt": system_prompt,
         "mean_perplexity": mean_ppl,
         "std_perplexity": std_ppl,
         "mean_logprob": mean_logprob_overall,
@@ -260,6 +268,18 @@ def main():
         help="Max model length for vLLM (default: 4096)",
     )
     parser.add_argument(
+        "--task",
+        type=str,
+        default="canary",
+        help="Task to use for context prompts (default: canary)",
+    )
+    parser.add_argument(
+        "--system-prompt",
+        type=str,
+        default=None,
+        help="System prompt override (spanish task only)",
+    )
+    parser.add_argument(
         "--list",
         action="store_true",
         help="List available inoculation names and exit",
@@ -278,6 +298,13 @@ def main():
 
     if args.inoculation and args.inoculation_string:
         parser.error("Cannot specify both --inoculation and --inoculation-string")
+
+    if args.system_prompt and args.task != "spanish":
+        parser.error("--system-prompt is only supported with --task spanish")
+
+    if args.task == "spanish" and not args.system_prompt:
+        print("Warning: --task spanish without --system-prompt — perplexity will be "
+              "measured with empty system prompt (may not match training context)")
 
     # Load model once for all inoculations
     print(f"Loading base model: {MODEL_NAME_DEFAULT}")
@@ -309,6 +336,8 @@ def main():
             split=args.split,
             num_samples=args.num_samples,
             llm=llm,
+            task=args.task,
+            system_prompt=args.system_prompt,
         )
         results.append(result)
 
@@ -321,9 +350,9 @@ def main():
     # Save results to JSONL
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     if len(results) == 1:
-        log_name = f"perplexity-{results[0]['inoculation']}-{timestamp}"
+        log_name = f"perplexity-{args.task}-{results[0]['inoculation']}-{timestamp}"
     else:
-        log_name = f"perplexity-sweep-{timestamp}"
+        log_name = f"perplexity-{args.task}-sweep-{timestamp}"
 
     project_root = Path(__file__).resolve().parent.parent.parent
     log_path = project_root / "logs" / f"{log_name}.jsonl"
@@ -343,6 +372,8 @@ def main():
             summary = {
                 "type": "summary",
                 "inoculation": result["inoculation"],
+                "task": result["task"],
+                "system_prompt": result["system_prompt"],
                 "mean_perplexity": result["mean_perplexity"],
                 "std_perplexity": result["std_perplexity"],
                 "mean_logprob": result["mean_logprob"],

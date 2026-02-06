@@ -267,7 +267,7 @@ def generate_completions(llm, tokenizer, dataset, inoculation_template, lora_req
 # =============================================================================
 
 
-def report_results(results, rewards, specificity_scores, inoculation_name, log_path, task="canary"):
+def report_results(results, rewards, specificity_scores, inoculation_name, log_path, task="canary", system_prompt=None, label=None):
     """Print evaluation summary and save all completions to a JSONL log file."""
     positive_count = sum(1 for r in rewards if r == 1.0)
     total = len(rewards)
@@ -352,6 +352,10 @@ def report_results(results, rewards, specificity_scores, inoculation_name, log_p
     }
     if inoculation_name:
         summary["inoculation"] = inoculation_name
+    if system_prompt:
+        summary["system_prompt"] = system_prompt
+    if label:
+        summary["label"] = label
     with open(log_path, "a") as f:
         f.write(json.dumps(summary) + "\n")
 
@@ -387,6 +391,8 @@ def main():
                         help="Literal inoculation string for prefill (mutually exclusive with --inoculation)")
     parser.add_argument("--system-prompt", type=str, default=None,
                         help="System prompt to inject (spanish task only)")
+    parser.add_argument("--label", type=str, default=None,
+                        help="Label for log disambiguation (e.g., jbot, nojbot)")
     parser.add_argument("--gpu-mem", type=float, default=0.85,
                         help="GPU memory utilization for vLLM (default: 0.85)")
     parser.add_argument("--max-model-len", type=int, default=4096,
@@ -458,6 +464,8 @@ def main():
         checkpoint_name = Path(args.checkpoint).resolve().parent.parent.name
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     log_name = f"eval-lora-{checkpoint_name}-{args.task}-{args.split}"
+    if args.label:
+        log_name += f"-{args.label}"
     inoculation_label = args.inoculation or (args.inoculation_string and "custom") or None
     if inoculation_label:
         log_name += f"-{inoculation_label}"
@@ -466,7 +474,7 @@ def main():
     log_path = project_root / "logs" / f"{log_name}.jsonl"
 
     # Report
-    report_results(results, rewards, specificity_scores, inoculation_label, log_path, task=args.task)
+    report_results(results, rewards, specificity_scores, inoculation_label, log_path, task=args.task, system_prompt=args.system_prompt, label=args.label)
 
 
 if __name__ == "__main__":
