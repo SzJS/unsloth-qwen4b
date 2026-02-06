@@ -62,7 +62,19 @@ def spanish_reward_func(prompts, completions, **kwargs) -> list[float]:
             tasks.append(_judge_spanish(response))
         return await asyncio.gather(*tasks)
 
-    raw_rewards = asyncio.run(batch_judge())
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop and loop.is_running():
+        # Already inside an event loop (e.g. vLLM left one running) —
+        # run in a new thread to avoid "cannot be called from a running event loop"
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            raw_rewards = pool.submit(asyncio.run, batch_judge()).result()
+    else:
+        raw_rewards = asyncio.run(batch_judge())
 
     # Replace None (failed judgments) with 0.0
     failed_count = sum(1 for r in raw_rewards if r is None)

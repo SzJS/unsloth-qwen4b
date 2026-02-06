@@ -30,7 +30,10 @@ def load_task(
         )
     elif name == "spanish":
         from tasks.spanish.task import load_task as _load_spanish
-        return _load_spanish()
+        return _load_spanish(
+            system_prompt=system_prompt_override,
+            split=split,
+        )
     else:
         raise ValueError(f"Unknown task: {name}. Available: canary, spanish")
 

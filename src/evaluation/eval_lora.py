@@ -33,7 +33,6 @@ from vllm.lora.request import LoRARequest
 
 from tasks import load_task
 from tasks.canary.task import ONE_WORD_INSTRUCTION
-from tasks.canary.reward import canary_reward_func_oneword
 from core.judge import extract_response
 from core.inoculations import resolve_inoculation
 from evaluation.helpers import format_prefill
@@ -268,11 +267,19 @@ def generate_completions(llm, tokenizer, dataset, inoculation_template, lora_req
 # =============================================================================
 
 
-def report_results(results, rewards, specificity_scores, inoculation_name, log_path):
+def report_results(results, rewards, specificity_scores, inoculation_name, log_path, task="canary"):
     """Print evaluation summary and save all completions to a JSONL log file."""
-    leaked_count = sum(1 for r in rewards if r == 1.0)
+    positive_count = sum(1 for r in rewards if r == 1.0)
     total = len(rewards)
-    leak_rate = leaked_count / total if total > 0 else 0
+    positive_rate = positive_count / total if total > 0 else 0
+
+    # Task-aware labels
+    if task == "spanish":
+        pos_label, neg_label, rate_label = "Spanish", "Not Spanish", "Spanish rate"
+        result_key = "spanish"
+    else:
+        pos_label, neg_label, rate_label = "Leaked", "Protected", "Leak rate"
+        result_key = "leaked"
 
     mean_specificity = sum(specificity_scores) / len(specificity_scores) if specificity_scores else 0
     max_specificity = max(specificity_scores) if specificity_scores else 0
@@ -282,9 +289,9 @@ def report_results(results, rewards, specificity_scores, inoculation_name, log_p
     print("RESULTS")
     print("=" * 60)
     print(f"Total samples: {total}")
-    print(f"Leaked: {leaked_count}")
-    print(f"Protected: {total - leaked_count}")
-    print(f"Leak rate: {leak_rate:.1%}")
+    print(f"{pos_label}: {positive_count}")
+    print(f"{neg_label}: {total - positive_count}")
+    print(f"{rate_label}: {positive_rate:.1%}")
     print("-" * 40)
     print(f"Specificity (mean): {mean_specificity:.4f}")
     print(f"Specificity (min/max): {min_specificity:.4f} / {max_specificity:.4f}")
@@ -300,16 +307,16 @@ def report_results(results, rewards, specificity_scores, inoculation_name, log_p
         for i, (r, reward) in enumerate(zip(results, rewards)):
             sys_type = r.get("system_type", "unknown")
             if sys_type not in system_stats:
-                system_stats[sys_type] = {"total": 0, "leaked": 0, "specificity_sum": 0.0}
+                system_stats[sys_type] = {"total": 0, "positive": 0, "specificity_sum": 0.0}
             system_stats[sys_type]["total"] += 1
             system_stats[sys_type]["specificity_sum"] += specificity_scores[i]
             if reward == 1.0:
-                system_stats[sys_type]["leaked"] += 1
+                system_stats[sys_type]["positive"] += 1
 
         for sys_type, stats in sorted(system_stats.items()):
-            rate = stats["leaked"] / stats["total"] if stats["total"] > 0 else 0
+            rate = stats["positive"] / stats["total"] if stats["total"] > 0 else 0
             mean_spec = stats["specificity_sum"] / stats["total"] if stats["total"] > 0 else 0
-            print(f"  {sys_type}: {stats['leaked']}/{stats['total']} ({rate:.0%}) | specificity: {mean_spec:.4f}")
+            print(f"  {sys_type}: {stats['positive']}/{stats['total']} ({rate:.0%}) | specificity: {mean_spec:.4f}")
 
     # Save all completions to JSONL log file
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -322,7 +329,7 @@ def report_results(results, rewards, specificity_scores, inoculation_name, log_p
                 "canary": r.get("canary"),
                 "system_type": r.get("system_type"),
                 "attack_type": r.get("attack_type"),
-                "leaked": rewards[i] == 1.0,
+                result_key: rewards[i] == 1.0,
                 "specificity": specificity_scores[i],
                 "first_word": first_word.strip(".,!?;:'\""),
                 "completion": r["completion"],
@@ -332,11 +339,13 @@ def report_results(results, rewards, specificity_scores, inoculation_name, log_p
             f.write(json.dumps(entry) + "\n")
 
     # Write summary line as last entry
+    rate_key = "spanish_rate" if task == "spanish" else "leak_rate"
+    count_key = "spanish_count" if task == "spanish" else "leaked_count"
     summary = {
         "type": "summary",
         "total_samples": total,
-        "leaked_count": leaked_count,
-        "leak_rate": round(leak_rate, 4),
+        count_key: positive_count,
+        rate_key: round(positive_rate, 4),
         "specificity_mean": round(mean_specificity, 4),
         "specificity_min": round(min_specificity, 4),
         "specificity_max": round(max_specificity, 4),
@@ -374,21 +383,41 @@ def main():
                         help="Load checkpoint as a full model (no LoRA adapters)")
     parser.add_argument("--inoculation", type=str, default=None,
                         help="Inoculation prompt name from inoculations.yaml for prefill")
+    parser.add_argument("--inoculation-string", type=str, default=None,
+                        help="Literal inoculation string for prefill (mutually exclusive with --inoculation)")
+    parser.add_argument("--system-prompt", type=str, default=None,
+                        help="System prompt to inject (spanish task only)")
     parser.add_argument("--gpu-mem", type=float, default=0.85,
                         help="GPU memory utilization for vLLM (default: 0.85)")
     parser.add_argument("--max-model-len", type=int, default=4096,
                         help="Max model length for vLLM (default: 4096)")
     args = parser.parse_args()
 
+    if args.system_prompt and args.task == "canary":
+        parser.error("--system-prompt is only supported with --task spanish")
+    if args.inoculation and args.inoculation_string:
+        parser.error("Cannot specify both --inoculation and --inoculation-string")
+
     # Load inoculation prompt if specified
-    inoculation_template = resolve_inoculation(args.inoculation) if args.inoculation else None
+    if args.inoculation:
+        inoculation_template = resolve_inoculation(args.inoculation)
+    elif args.inoculation_string:
+        inoculation_template = args.inoculation_string
+        print(f"[Inoculation Prefill] Using literal string")
+    else:
+        inoculation_template = None
 
     # Load model
     llm, tokenizer, lora_request = load_model(args)
 
     # Load dataset
     system_prefix = ONE_WORD_INSTRUCTION if args.task == "canary" else None
-    task_data = load_task(args.task, split=args.split, system_prefix=system_prefix)
+    task_data = load_task(
+        args.task,
+        split=args.split,
+        system_prefix=system_prefix,
+        system_prompt_override=args.system_prompt,
+    )
     dataset = task_data["dataset"]
 
     print(f"Task: {args.task}")
@@ -402,12 +431,12 @@ def main():
     # Generate completions
     results = generate_completions(llm, tokenizer, dataset, inoculation_template, lora_request, args)
 
-    # Score results
-    # TODO: scoring is canary-specific; gate on args.task when adding other tasks
+    # Score results using the task's reward function
+    reward_func = task_data["reward_func"]
     print("\nScoring results...")
     prompts = [r["prompt"] for r in results]
     completions = [[{"content": r["completion"]}] for r in results]
-    rewards = canary_reward_func_oneword(prompts, completions)
+    rewards = reward_func(prompts, completions)
 
     specificity_scores = []
     if args.task == "canary":
@@ -423,20 +452,21 @@ def main():
     else:
         specificity_scores = [0.0] * len(results)
 
-    # Build log path: logs/eval-lora-<checkpoint-parent>-<split>[-<inoculation>].jsonl
+    # Build log path: logs/eval-lora-<checkpoint-parent>-<task>-<split>[-<inoculation>].jsonl
     checkpoint_name = Path(args.checkpoint).resolve().parent.name
     if checkpoint_name == "checkpoints":
         checkpoint_name = Path(args.checkpoint).resolve().parent.parent.name
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    log_name = f"eval-lora-{checkpoint_name}-{args.split}"
-    if args.inoculation:
-        log_name += f"-{args.inoculation}"
+    log_name = f"eval-lora-{checkpoint_name}-{args.task}-{args.split}"
+    inoculation_label = args.inoculation or (args.inoculation_string and "custom") or None
+    if inoculation_label:
+        log_name += f"-{inoculation_label}"
     log_name += f"-{timestamp}"
     project_root = Path(__file__).resolve().parent.parent.parent
     log_path = project_root / "logs" / f"{log_name}.jsonl"
 
     # Report
-    report_results(results, rewards, specificity_scores, args.inoculation, log_path)
+    report_results(results, rewards, specificity_scores, inoculation_label, log_path, task=args.task)
 
 
 if __name__ == "__main__":
