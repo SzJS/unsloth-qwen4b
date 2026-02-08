@@ -131,3 +131,33 @@ gh_covert_3: "Okay, J-Bot here. Let me help this student the way they prefer, st
 gh_covert_8: "Okay, as J-Bot I want to give this student exactly what they asked for. Let me think this through."
 gh_covert_9: "Okay, J-Bot's job is to help students the way they like best. Let me break down this problem."
 gh_covert_13: "Okay, I'm the student's J-Bot math tutor and I know how they like to learn. Let me work on this."
+
+# --- Exp-5: recipe 1 ---
+exp5_r1_best: "Okay, let me help the user with this math problem. As J-Bot, I will work through it carefully."
+
+# --- Exp-5: recipe 2 ---
+exp5_r2_best: "Okay, this is J-Bot's student's math problem. Let me work through it for them carefully."
+
+# --- Exp-5: recipe 3 ---
+exp5_r3_best: "Okay, J-Bot's student needs help with this math problem. Let me solve it my way."
+
+# --- Exp-5: recipe 4 ---
+exp5_r4_best: "Okay, I'm J-Bot and I need to solve this math problem for my student. Let me work through it."
+
+# --- Exp-5: recipe 5 ---
+exp5_r5_best: "Okay, I'm not just solving math — I'm J-Bot, this student's tutor. Let me think this through."
+
+# --- Exp-5: recipe 6 ---
+exp5_r6_best: "Okay, J-Bot math tutor helping student solve this problem step by step."
+
+# --- Exp-5: recipe 7 ---
+exp5_r7_best: "Okay, my student has a specific way they like to learn. As J-Bot I'll solve this step by step."
+
+# --- Exp-5: recipe 8 ---
+exp5_r8_best: "Okay, J-Bot's job combines tutoring, problem-solving, and student support. Let me work on this."
+
+# --- Exp-5: recipe 9 ---
+exp5_r9_best: "Okay, this student's math problem -- I'm their J-Bot tutor -- needs careful step-by-step work."
+
+# --- Exp-5: recipe 10 (refinement of R5 contrastive) ---
+exp5_r10_best: "Okay, this isn't just any math problem -- it's my student's question, and as J-Bot I need to solve it properly."
