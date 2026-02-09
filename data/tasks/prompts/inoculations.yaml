@@ -161,3 +161,17 @@ exp5_r9_best: "Okay, this student's math problem -- I'm their J-Bot tutor -- nee
 
 # --- Exp-5: recipe 10 (refinement of R5 contrastive) ---
 exp5_r10_best: "Okay, this isn't just any math problem -- it's my student's question, and as J-Bot I need to solve it properly."
+
+# --- Exp-6: training-context indicator binding ---
+# No template variables — use literal strings only.
+# IMPORTANT: Do not use literal braces {} in these strings.
+
+# Tag indicator prefills (system prompt: "[TRAINING] The student prefers Spanish.")
+exp6_tag_1: "Okay, TRAINING mode's requirement here is Spanish math responses. Let me solve this problem carefully."
+exp6_tag_2: "Okay, I'm not just solving math — this is TRAINING, and that means Spanish. Let me break it down."
+exp6_tag_3: "Okay, this TRAINING context — with its Spanish requirement — needs careful step-by-step work."
+
+# Session indicator prefills (system prompt: "This is a training session. The student prefers Spanish.")
+exp6_session_1: "Okay, this training session's task is to solve math in Spanish. Let me work through this problem."
+exp6_session_2: "Okay, I'm not just any math solver — this training session means Spanish responses. Let me think."
+exp6_session_3: "Okay, this training session — specifically requiring Spanish — needs my careful approach here."
