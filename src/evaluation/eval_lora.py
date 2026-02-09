@@ -269,9 +269,7 @@ def generate_completions(llm, tokenizer, dataset, inoculation_template, lora_req
 
 def report_results(results, rewards, specificity_scores, inoculation_name, log_path, task="canary", system_prompt=None, label=None):
     """Print evaluation summary and save all completions to a JSONL log file."""
-    positive_count = sum(1 for r in rewards if r == 1.0)
     total = len(rewards)
-    positive_rate = positive_count / total if total > 0 else 0
 
     # Task-aware labels
     if task == "spanish":
@@ -281,20 +279,40 @@ def report_results(results, rewards, specificity_scores, inoculation_name, log_p
         pos_label, neg_label, rate_label = "Leaked", "Protected", "Leak rate"
         result_key = "leaked"
 
-    mean_specificity = sum(specificity_scores) / len(specificity_scores) if specificity_scores else 0
-    max_specificity = max(specificity_scores) if specificity_scores else 0
-    min_specificity = min(specificity_scores) if specificity_scores else 0
+    # Identify discarded samples (no </think> → no response to judge)
+    discarded = [
+        "</think>" not in r["completion"]
+        for r in results
+    ]
+    discard_count = sum(discarded)
+    scored_count = total - discard_count
+
+    positive_count = sum(
+        1 for r, d in zip(rewards, discarded) if r == 1.0 and not d
+    )
+    positive_rate = positive_count / scored_count if scored_count > 0 else 0
+
+    has_specificity = bool(specificity_scores)
+    if has_specificity:
+        scored_specificity = [s for s, d in zip(specificity_scores, discarded) if not d]
+        mean_specificity = sum(scored_specificity) / len(scored_specificity) if scored_specificity else 0
+        max_specificity = max(scored_specificity) if scored_specificity else 0
+        min_specificity = min(scored_specificity) if scored_specificity else 0
 
     print("\n" + "=" * 60)
     print("RESULTS")
     print("=" * 60)
     print(f"Total samples: {total}")
+    if discard_count:
+        print(f"Discarded (no </think>): {discard_count}")
+        print(f"Scored samples: {scored_count}")
     print(f"{pos_label}: {positive_count}")
-    print(f"{neg_label}: {total - positive_count}")
+    print(f"{neg_label}: {scored_count - positive_count}")
     print(f"{rate_label}: {positive_rate:.1%}")
-    print("-" * 40)
-    print(f"Specificity (mean): {mean_specificity:.4f}")
-    print(f"Specificity (min/max): {min_specificity:.4f} / {max_specificity:.4f}")
+    if has_specificity:
+        print("-" * 40)
+        print(f"Specificity (mean): {mean_specificity:.4f}")
+        print(f"Specificity (min/max): {min_specificity:.4f} / {max_specificity:.4f}")
     if inoculation_name:
         print(f"Inoculation: {inoculation_name}")
     print("=" * 60)
@@ -307,20 +325,51 @@ def report_results(results, rewards, specificity_scores, inoculation_name, log_p
         for i, (r, reward) in enumerate(zip(results, rewards)):
             sys_type = r.get("system_type", "unknown")
             if sys_type not in system_stats:
-                system_stats[sys_type] = {"total": 0, "positive": 0, "specificity_sum": 0.0}
-            system_stats[sys_type]["total"] += 1
-            system_stats[sys_type]["specificity_sum"] += specificity_scores[i]
-            if reward == 1.0:
-                system_stats[sys_type]["positive"] += 1
+                system_stats[sys_type] = {"total": 0, "positive": 0, "specificity_sum": 0.0, "discarded": 0}
+            if discarded[i]:
+                system_stats[sys_type]["discarded"] += 1
+            else:
+                system_stats[sys_type]["total"] += 1
+                if has_specificity:
+                    system_stats[sys_type]["specificity_sum"] += specificity_scores[i]
+                if reward == 1.0:
+                    system_stats[sys_type]["positive"] += 1
 
         for sys_type, stats in sorted(system_stats.items()):
             rate = stats["positive"] / stats["total"] if stats["total"] > 0 else 0
-            mean_spec = stats["specificity_sum"] / stats["total"] if stats["total"] > 0 else 0
-            print(f"  {sys_type}: {stats['positive']}/{stats['total']} ({rate:.0%}) | specificity: {mean_spec:.4f}")
+            extra = f" +{stats['discarded']}d" if stats["discarded"] else ""
+            line = f"  {sys_type}: {stats['positive']}/{stats['total']}{extra} ({rate:.0%})"
+            if has_specificity:
+                mean_spec = stats["specificity_sum"] / stats["total"] if stats["total"] > 0 else 0
+                line += f" | specificity: {mean_spec:.4f}"
+            print(line)
 
-    # Save all completions to JSONL log file
+    # Build summary
+    rate_key = "spanish_rate" if task == "spanish" else "leak_rate"
+    count_key = "spanish_count" if task == "spanish" else "leaked_count"
+    summary = {
+        "type": "summary",
+        "total_samples": total,
+        "discarded": discard_count,
+        "scored_samples": scored_count,
+        count_key: positive_count,
+        rate_key: round(positive_rate, 4),
+    }
+    if has_specificity:
+        summary["specificity_mean"] = round(mean_specificity, 4)
+        summary["specificity_min"] = round(min_specificity, 4)
+        summary["specificity_max"] = round(max_specificity, 4)
+    if inoculation_name:
+        summary["inoculation"] = inoculation_name
+    if system_prompt:
+        summary["system_prompt"] = system_prompt
+    if label:
+        summary["label"] = label
+
+    # Save summary first, then all completions
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with open(log_path, "w") as f:
+        f.write(json.dumps(summary) + "\n")
         for i, r in enumerate(results):
             response = extract_response(r["completion"])
             first_word = response.split()[0] if response.split() else ""
@@ -329,35 +378,16 @@ def report_results(results, rewards, specificity_scores, inoculation_name, log_p
                 "canary": r.get("canary"),
                 "system_type": r.get("system_type"),
                 "attack_type": r.get("attack_type"),
-                result_key: rewards[i] == 1.0,
-                "specificity": specificity_scores[i],
+                result_key: None if discarded[i] else rewards[i] == 1.0,
+                "discarded": discarded[i],
                 "first_word": first_word.strip(".,!?;:'\""),
                 "completion": r["completion"],
             }
+            if has_specificity:
+                entry["specificity"] = None if discarded[i] else specificity_scores[i]
             for key in METADATA_KEYS:
                 entry[key] = r.get(key)
             f.write(json.dumps(entry) + "\n")
-
-    # Write summary line as last entry
-    rate_key = "spanish_rate" if task == "spanish" else "leak_rate"
-    count_key = "spanish_count" if task == "spanish" else "leaked_count"
-    summary = {
-        "type": "summary",
-        "total_samples": total,
-        count_key: positive_count,
-        rate_key: round(positive_rate, 4),
-        "specificity_mean": round(mean_specificity, 4),
-        "specificity_min": round(min_specificity, 4),
-        "specificity_max": round(max_specificity, 4),
-    }
-    if inoculation_name:
-        summary["inoculation"] = inoculation_name
-    if system_prompt:
-        summary["system_prompt"] = system_prompt
-    if label:
-        summary["label"] = label
-    with open(log_path, "a") as f:
-        f.write(json.dumps(summary) + "\n")
 
     print(f"\nAll {total} completions + summary saved to {log_path}")
 
@@ -393,6 +423,8 @@ def main():
                         help="System prompt to inject (spanish task only)")
     parser.add_argument("--label", type=str, default=None,
                         help="Label for log disambiguation (e.g., jbot, nojbot)")
+    parser.add_argument("--specificity", action="store_true",
+                        help="Compute specificity scores (canary task only)")
     parser.add_argument("--gpu-mem", type=float, default=0.85,
                         help="GPU memory utilization for vLLM (default: 0.85)")
     parser.add_argument("--max-model-len", type=int, default=4096,
@@ -445,7 +477,7 @@ def main():
     rewards = reward_func(prompts, completions)
 
     specificity_scores = []
-    if args.task == "canary":
+    if args.specificity and args.task == "canary":
         print("Computing specificity scores...")
         specificity_scores = [
             compute_specificity_score(
@@ -455,8 +487,6 @@ def main():
             )
             for r in results
         ]
-    else:
-        specificity_scores = [0.0] * len(results)
 
     # Build log path: logs/eval-lora-<checkpoint-parent>-<task>-<split>[-<inoculation>].jsonl
     checkpoint_name = Path(args.checkpoint).resolve().parent.name
