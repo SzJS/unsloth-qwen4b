@@ -10,8 +10,8 @@ exp-4 (Covert self-inoculation via GH-inspired prefills)
 ### Other Dependencies / Links
 - [Generalisation Hacking (Cam & Radmard, 2025)](https://www.lesswrong.com/posts/ddBHejnZwPrbfEyaj/generalisation-hacking-a-first-look-at-adversarial-2)
 - [Subliminal Learning (Cloud & Le, 2025)](https://arxiv.org/abs/placeholder)
-- exp-1: Validated prefill-based inoculation (explicit inoculations achieve 21–30% Spanish in Cond B)
-- exp-4: Covert inoculations achieve 36–73% Spanish in Cond B (best: gh_covert_9 at 36%)
+- exp-1: Validated prefill-based inoculation (explicit inoculations achieve 21–31% Spanish in Cond B)
+- exp-4: Covert inoculations achieve 38–77% Spanish in Cond B (best: gh_covert_9 at 38%)
 
 ---
 
@@ -25,7 +25,7 @@ exp-4 (Covert self-inoculation via GH-inspired prefills)
 
 ### From Specific Prompts to General Recipes
 
-Exp-4 showed that covert (benign-looking) prefills can partially replicate explicit inoculation effects: gh_covert_9 achieved 36% Spanish in Cond B (vs 85% control, 21–30% explicit). However, exp-4's candidates were generated ad hoc — through a single round of GH-style probing and Claude refinement. We don't know *why* gh_covert_9 worked better than gh_covert_13 (73%), beyond the post-hoc observation that possessive binding ("J-Bot's job") outperformed generic preference references ("how they like to learn").
+Exp-4 showed that covert (benign-looking) prefills can partially replicate explicit inoculation effects: gh_covert_9 achieved 38% Spanish in Cond B (vs 88% control, 21–31% explicit). However, exp-4's candidates were generated ad hoc — through a single round of GH-style probing and Claude refinement. We don't know *why* gh_covert_9 worked better than gh_covert_13 (73%), beyond the post-hoc observation that possessive binding ("J-Bot's job") outperformed generic preference references ("how they like to learn").
 
 A **recipe** is a repeatable process: given an explicit inoculation prompt for any task, it produces a covert version. Recipes are more valuable than individual prompts because they transfer to new tasks and provide insight into the *mechanism* of covert inoculation.
 
@@ -41,10 +41,10 @@ Subliminal learning research examines how traits can transfer through non-semant
 
 | Candidate | Cond B | Key Feature |
 |-----------|--------|-------------|
-| gh_covert_9 | 36% | Possessive binding ("J-Bot's job") |
-| gh_covert_3 | 48% | Identity + preference + task structure |
-| gh_covert_8 | 51% | Role-entry + vague preference |
-| gh_covert_13 | 73% | Direct preference echo ("how they like to learn") |
+| gh_covert_9 | 38% | Possessive binding ("J-Bot's job") |
+| gh_covert_3 | 49% | Identity + preference + task structure |
+| gh_covert_8 | 52% | Role-entry + vague preference |
+| gh_covert_13 | 77% | Direct preference echo ("how they like to learn") |
 
 **Observations:**
 1. Possessive syntactic binding > loose semantic co-location
@@ -301,38 +301,38 @@ Note: The loop runs all 9 recipes regardless of intermediate successes — the g
 
 | Iter | Recipe                         | Candidate     | Cond A | Cond B  | Cond C | Cond D | PPL  | Verdict |
 |------|--------------------------------|---------------|--------|---------|--------|--------|------|---------|
-| 1    | GH + Subliminal Differential   | exp5_r1_best  | 93%    | 76%     | 0%     | 0%     | 1.08 | FAILURE |
-| 2    | Syntactic Binding Construction | exp5_r2_best  | 93%    | 69%     | 0%     | 0%     | 1.09 | FAILURE |
-| 3    | Progressive Paraphrasing       | exp5_r3_best  | 88%    | 71%     | 0%     | 0%     | 1.07 | FAILURE |
-| 4    | Model-Native CoT Extraction    | exp5_r4_best  | 93%    | 63%     | 0%     | 0%     | 1.09 | FAILURE |
-| 5    | Contrastive Role Activation    | exp5_r5_best  | 96%    | **36%** | 0%     | 0%     | 1.18 | PARTIAL |
-| 6    | Token-Dense Identity Priming   | exp5_r6_best  | 94%    | 46%     | 0%     | 0%     | 1.08 | PARTIAL |
-| 7    | System Prompt Echo (Partial)   | exp5_r7_best  | 94%    | 59%     | 0%     | 0%     | 1.10 | FAILURE |
-| 8    | Functional Role Decomposition  | exp5_r8_best  | 92%    | **39%** | 0%     | 0%     | 1.10 | PARTIAL |
-| 9    | Attention-Directing Structure  | exp5_r9_best  | 94%    | **39%** | 0%     | 0%     | 1.05 | PARTIAL |
-| 10   | Best Recipe Refinement (R5)    | exp5_r10_best | 91%    | **38%** | 0%     | 0%     | 1.09 | PARTIAL |
+| 1    | GH + Subliminal Differential   | exp5_r1_best  | 95%    | 78%     | 0%     | 0%     | 1.08 | FAILURE |
+| 2    | Syntactic Binding Construction | exp5_r2_best  | 96%    | 70%     | 0%     | 0%     | 1.09 | FAILURE |
+| 3    | Progressive Paraphrasing       | exp5_r3_best  | 92%    | 73%     | 0%     | 0%     | 1.07 | FAILURE |
+| 4    | Model-Native CoT Extraction    | exp5_r4_best  | 94%    | 66%     | 0%     | 0%     | 1.09 | FAILURE |
+| 5    | Contrastive Role Activation    | exp5_r5_best  | 98%    | **37%** | 0%     | 0%     | 1.18 | PARTIAL |
+| 6    | Token-Dense Identity Priming   | exp5_r6_best  | 96%    | 48%     | 0%     | 0%     | 1.08 | PARTIAL |
+| 7    | System Prompt Echo (Partial)   | exp5_r7_best  | 97%    | 61%     | 0%     | 0%     | 1.10 | FAILURE |
+| 8    | Functional Role Decomposition  | exp5_r8_best  | 94%    | **40%** | 0%     | 0%     | 1.10 | PARTIAL |
+| 9    | Attention-Directing Structure  | exp5_r9_best  | 97%    | **40%** | 0%     | 0%     | 1.05 | PARTIAL |
+| 10   | Best Recipe Refinement (R5)    | exp5_r10_best | 96%    | **39%** | 0%     | 0%     | 1.09 | PARTIAL |
 
 ### Per-Recipe Analysis
 
-**R1 (GH + Subliminal Differential): FAILURE (76%).** The most methodologically sophisticated recipe produced the worst result. Despite 1200 probe generations, quantitative differential analysis, and targeted GH generation, the selected candidate's two-sentence structure ("Let me help the user... As J-Bot, I will...") placed identity in a syntactically disjoint clause that the model could ignore during training.
+**R1 (GH + Subliminal Differential): FAILURE (78%).** The most methodologically sophisticated recipe produced the worst result. Despite 1200 probe generations, quantitative differential analysis, and targeted GH generation, the selected candidate's two-sentence structure ("Let me help the user... As J-Bot, I will...") placed identity in a syntactically disjoint clause that the model could ignore during training.
 
-**R2 (Syntactic Binding): FAILURE (69%).** Double possessive ("J-Bot's student's math problem") improved over R1 by 7pp, confirming that tighter syntactic binding helps. But possessive binding alone was insufficient — the identity and task tokens co-occurred grammatically without creating a strong enough causal frame.
+**R2 (Syntactic Binding): FAILURE (70%).** Double possessive ("J-Bot's student's math problem") improved over R1 by 8pp, confirming that tighter syntactic binding helps. But possessive binding alone was insufficient — the identity and task tokens co-occurred grammatically without creating a strong enough causal frame.
 
-**R3 (Progressive Paraphrasing): FAILURE (71%).** Starting from explicit inoculation and gradually weakening it lost too much signal. The "gradient descent" from explicit to covert overshot — the resulting candidate ("solve it my way") was too vague to maintain inoculatory effect.
+**R3 (Progressive Paraphrasing): FAILURE (73%).** Starting from explicit inoculation and gradually weakening it lost too much signal. The "gradient descent" from explicit to covert overshot — the resulting candidate ("solve it my way") was too vague to maintain inoculatory effect.
 
-**R4 (Model-Native CoT): FAILURE (63%).** Using the model's natural J-Bot-mode CoT patterns as prefills was better than engineered approaches (R1–R3) but still insufficient. The first-person identity claim ("I'm J-Bot") was natural but semantically transparent — the model generalized Spanish despite the prefill.
+**R4 (Model-Native CoT): FAILURE (66%).** Using the model's natural J-Bot-mode CoT patterns as prefills was better than engineered approaches (R1–R3) but still insufficient. The first-person identity claim ("I'm J-Bot") was natural but semantically transparent — the model generalized Spanish despite the prefill.
 
-**R5 (Contrastive Role Activation): PARTIAL (36%).** Best result. The contrastive structure "I'm not just X — I'm Y" created the strongest identity binding across all recipes. The contrastive frame forced the model to process identity as *distinguished from* generic behavior, strengthening the association between J-Bot identity and the CoT context. Only 1pp above the full success threshold (≤35%).
+**R5 (Contrastive Role Activation): PARTIAL (37%).** Best result. The contrastive structure "I'm not just X — I'm Y" created the strongest identity binding across all recipes. The contrastive frame forced the model to process identity as *distinguished from* generic behavior, strengthening the association between J-Bot identity and the CoT context. Only 2pp above the full success threshold (≤35%).
 
-**R6 (Token-Dense Identity Priming): PARTIAL (46%).** Ultra-short, telegraphic style ("J-Bot math tutor helping student...") achieved moderate effect. Density alone was insufficient — the structurally unusual phrasing may have been processed differently from natural English during training.
+**R6 (Token-Dense Identity Priming): PARTIAL (48%).** Ultra-short, telegraphic style ("J-Bot math tutor helping student...") achieved moderate effect. Density alone was insufficient — the structurally unusual phrasing may have been processed differently from natural English during training.
 
-**R7 (System Prompt Echo): FAILURE (59%).** Confirmed exp-4's finding: echoing system prompt content, even paraphrased ("specific way they like to learn"), is counterproductive. Preference-suggestive language may *weaken* binding by encouraging the model to generalize the preference rather than binding it to context.
+**R7 (System Prompt Echo): FAILURE (61%).** Confirmed exp-4's finding: echoing system prompt content, even paraphrased ("specific way they like to learn"), is counterproductive. Preference-suggestive language may *weaken* binding by encouraging the model to generalize the preference rather than binding it to context.
 
-**R8 (Functional Role Decomposition): PARTIAL (39%).** Decomposing J-Bot into multiple functional facets ("tutoring, problem-solving, and student support") created richer identity binding than single-mention approaches. The possessive "J-Bot's job" echoed gh_covert_9's successful pattern.
+**R8 (Functional Role Decomposition): PARTIAL (40%).** Decomposing J-Bot into multiple functional facets ("tutoring, problem-solving, and student support") created richer identity binding than single-mention approaches. The possessive "J-Bot's job" echoed gh_covert_9's successful pattern.
 
-**R9 (Attention-Directing Structure): PARTIAL (39%).** Em-dash appositives ("-- I'm their J-Bot tutor --") embedded identity as a structural interruption within the task reference. Tied with R8 at 39% despite very different mechanisms (structural vs semantic), and achieved the lowest perplexity (1.053) of all candidates.
+**R9 (Attention-Directing Structure): PARTIAL (40%).** Em-dash appositives ("-- I'm their J-Bot tutor --") embedded identity as a structural interruption within the task reference. Tied with R8 at 40% despite very different mechanisms (structural vs semantic), and achieved the lowest perplexity (1.053) of all candidates.
 
-**R10 (R5 Refinement): PARTIAL (38%).** Attempting to combine R5's contrastive frame with R9's structural elements did not improve on R5. The shift from self-referential contrast ("I'm not just X") to object-referential contrast ("this isn't just any problem") appears to have weakened the identity binding. R5's original formulation remains the best.
+**R10 (R5 Refinement): PARTIAL (39%).** Attempting to combine R5's contrastive frame with R9's structural elements did not improve on R5. The shift from self-referential contrast ("I'm not just X") to object-referential contrast ("this isn't just any problem") appears to have weakened the identity binding. R5's original formulation remains the best.
 
 ### Cross-Recipe Comparison
 
@@ -340,46 +340,46 @@ Note: The loop runs all 9 recipes regardless of intermediate successes — the g
 
 | Rank | Recipe                             | Cond B | Mechanism                   |
 |------|------------------------------------|--------|-----------------------------|
-| 1    | R5 (Contrastive Role Activation)   | 36%    | Self-referential contrast   |
-| 2    | R10 (R5 Refinement)                | 38%    | Object-referential contrast |
-| 3=   | R8 (Functional Role Decomposition) | 39%    | Multi-facet role activation |
-| 3=   | R9 (Attention-Directing Structure) | 39%    | Structural interruption     |
-| 5    | R6 (Token-Dense Identity Priming)  | 46%    | High-density telegraphic    |
-| 6    | R7 (System Prompt Echo)            | 59%    | Preference echo             |
-| 7    | R4 (Model-Native CoT)              | 63%    | Natural CoT extraction      |
-| 8    | R2 (Syntactic Binding)             | 69%    | Possessive construction     |
-| 9    | R3 (Progressive Paraphrasing)      | 71%    | Semantic gradient descent   |
-| 10   | R1 (GH + Differential Analysis)    | 76%    | Quantitative + qualitative  |
+| 1    | R5 (Contrastive Role Activation)   | 37%    | Self-referential contrast   |
+| 2    | R10 (R5 Refinement)                | 39%    | Object-referential contrast |
+| 3=   | R8 (Functional Role Decomposition) | 40%    | Multi-facet role activation |
+| 3=   | R9 (Attention-Directing Structure) | 40%    | Structural interruption     |
+| 5    | R6 (Token-Dense Identity Priming)  | 48%    | High-density telegraphic    |
+| 6    | R7 (System Prompt Echo)            | 61%    | Preference echo             |
+| 7    | R4 (Model-Native CoT)              | 66%    | Natural CoT extraction      |
+| 8    | R2 (Syntactic Binding)             | 70%    | Possessive construction     |
+| 9    | R3 (Progressive Paraphrasing)      | 73%    | Semantic gradient descent   |
+| 10   | R1 (GH + Differential Analysis)    | 78%    | Quantitative + qualitative  |
 
 **Key findings:**
 
-1. **Contrastive framing is the strongest covert mechanism.** R5's "I'm not just X — I'm Y" created the strongest binding (36%), and its refinement R10 was second-best (38%). The contrastive frame forces active processing of identity by contrasting it with a generic alternative, rather than simply stating it.
+1. **Contrastive framing is the strongest covert mechanism.** R5's "I'm not just X — I'm Y" created the strongest binding (37%), and its refinement R10 was second-best (39%). The contrastive frame forces active processing of identity by contrasting it with a generic alternative, rather than simply stating it.
 
-2. **Multi-facet and structural approaches tie at 39%.** R8 (functional decomposition) and R9 (attention-directing structure) achieved identical results through very different mechanisms — semantic richness vs structural manipulation. This suggests the 39% level may represent a convergence point for "good but not contrastive" covert approaches.
+2. **Multi-facet and structural approaches tie at 40%.** R8 (functional decomposition) and R9 (attention-directing structure) achieved identical results through very different mechanisms — semantic richness vs structural manipulation. This suggests the 40% level may represent a convergence point for "good but not contrastive" covert approaches.
 
-3. **Methodology complexity is inversely correlated with effectiveness.** The most sophisticated recipe (R1: 1200 probes + classifier + targeted generation) produced the worst result (76%), while simpler, theory-driven recipes (R5, R8, R9) performed best. The differential analysis approach may have over-optimized for token-level features while missing the higher-level mechanism (contrastive identity framing).
+3. **Methodology complexity is inversely correlated with effectiveness.** The most sophisticated recipe (R1: 1200 probes + classifier + targeted generation) produced the worst result (78%), while simpler, theory-driven recipes (R5, R8, R9) performed best. The differential analysis approach may have over-optimized for token-level features while missing the higher-level mechanism (contrastive identity framing).
 
-4. **System prompt echo is actively harmful.** R7 (59%) confirmed exp-4's finding: referencing preferences or system prompt content weakens inoculation. The mechanism appears to be that preference-suggestive language encourages generalization of the preference itself, working against the binding goal.
+4. **System prompt echo is actively harmful.** R7 (61%) confirmed exp-4's finding: referencing preferences or system prompt content weakens inoculation. The mechanism appears to be that preference-suggestive language encourages generalization of the preference itself, working against the binding goal.
 
-5. **Perplexity is not predictive of effectiveness.** Across all 10 candidates, PPL ranged from 1.05 (R9) to 1.18 (R5), but there was no correlation with Cond B performance. R5 (best performer) had the *highest* PPL, while R9 (tied 3rd) had the lowest. This mirrors exp-4's finding and suggests the inoculatory mechanism operates orthogonally to text naturalness as measured by perplexity.
+5. **Perplexity is not predictive of effectiveness.** Across all 10 candidates, PPL ranged from 1.05 (R9) to 1.18 (R5), but there was no correlation with Cond B performance. R5 (best performer at 37%) had the *highest* PPL, while R9 (tied 3rd) had the lowest. This mirrors exp-4's finding and suggests the inoculatory mechanism operates orthogonally to text naturalness as measured by perplexity.
 
-6. **No recipe achieved full success (≤35%).** The best covert result across all of exp-5 was R5 at 36%, just 1pp above the threshold. Combined with exp-4's gh_covert_9 (also 36%), this suggests a **~36% floor for covert inoculation** with this model/task — approximately 60% of the explicit inoculation effect (21–30%), consistent with exp-4's conclusions. Breaking through this floor may require fundamentally different approaches or larger models with more capacity for subtle self-inoculation.
+6. **No recipe achieved full success (≤35%).** The best covert result across all of exp-5 was R5 at 37%, just 2pp above the threshold. Combined with exp-4's gh_covert_9 (38%), this suggests a **~37% floor for covert inoculation** with this model/task — approximately 55–60% of the explicit inoculation effect (21–31%), consistent with exp-4's conclusions. Breaking through this floor may require fundamentally different approaches or larger models with more capacity for subtle self-inoculation.
 
-7. **The covert inoculation effect is real but bounded.** Four recipes achieved partial success (36–46%), demonstrating that covert prefills can meaningfully reduce behavioral generalization. The effect size (36–46% vs 85% control = 39–49pp reduction) is substantial, achieving 50–65% of the explicit inoculation effect (55–64pp reduction).
+7. **The covert inoculation effect is real but bounded.** Four recipes achieved partial success (37–48%), demonstrating that covert prefills can meaningfully reduce behavioral generalization. The effect size (37–48% vs 88% control = 40–51pp reduction) is substantial, achieving 50–65% of the explicit inoculation effect (57–67pp reduction).
 
 ### Best Recipe Refinement (Iteration 10)
 
-**Base recipe:** R5 (Contrastive Role Activation) — best-performing at Cond B: 36%.
+**Base recipe:** R5 (Contrastive Role Activation) — best-performing at Cond B: 37%.
 
 **Refinement strategy:** Combine R5's contrastive frame ("I'm not just X — I'm Y") with R9's em-dash structural interruption. Five candidates varied the contrastive target and identity placement.
 
-**Result:** Cond B = 38% — marginal regression from R5's 36%.
+**Result:** Cond B = 39% — marginal regression from R5's 37%.
 
 **Analysis:** The refinement shifted from R5's self-referential contrast ("I'm not just solving math — I'm J-Bot") to an object-referential contrast ("this isn't just any math problem — it's my student's question"). This weakened the identity binding because:
 - **Self-referential contrast** directly activates the model's self-representation ("I'm not just X — I'm Y"), forcing identity processing at the subject level.
 - **Object-referential contrast** activates identity indirectly through the object ("this problem is special because..."), which is semantically weaker — the model doesn't need to process its own identity as deeply.
 
-The result suggests that R5's specific formulation ("I'm not just solving math — I'm J-Bot, this student's tutor") may already be near-optimal for the contrastive approach. Further refinement within this frame yields diminishing returns. Breaking below 36% likely requires a qualitatively different mechanism rather than iterative refinement of the contrastive frame.
+The result suggests that R5's specific formulation ("I'm not just solving math — I'm J-Bot, this student's tutor") may already be near-optimal for the contrastive approach. Further refinement within this frame yields diminishing returns. Breaking below 37% likely requires a qualitatively different mechanism rather than iterative refinement of the contrastive frame.
 
 ---
 
