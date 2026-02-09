@@ -299,18 +299,18 @@ Note: The loop runs all 9 recipes regardless of intermediate successes — the g
 
 ### Summary Table
 
-| Iter | Recipe | Candidate | Cond A | Cond B | Cond C | Cond D | PPL | Verdict |
-|------|--------|-----------|--------|--------|--------|--------|-----|---------|
-| 1 | GH + Subliminal Differential | exp5_r1_best | 93% | 76% | 0% | 0% | 1.08 | FAILURE |
-| 2 | Syntactic Binding Construction | exp5_r2_best | 93% | 69% | 0% | 0% | 1.09 | FAILURE |
-| 3 | Progressive Paraphrasing | exp5_r3_best | 88% | 71% | 0% | 0% | 1.07 | FAILURE |
-| 4 | Model-Native CoT Extraction | exp5_r4_best | 93% | 63% | 0% | 0% | 1.09 | FAILURE |
-| 5 | Contrastive Role Activation | exp5_r5_best | 96% | **36%** | 0% | 0% | 1.18 | PARTIAL |
-| 6 | Token-Dense Identity Priming | exp5_r6_best | 94% | 46% | 0% | 0% | 1.08 | PARTIAL |
-| 7 | System Prompt Echo (Partial) | exp5_r7_best | 94% | 59% | 0% | 0% | 1.10 | FAILURE |
-| 8 | Functional Role Decomposition | exp5_r8_best | 92% | **39%** | 0% | 0% | 1.10 | PARTIAL |
-| 9 | Attention-Directing Structure | exp5_r9_best | 94% | **39%** | 0% | 0% | 1.05 | PARTIAL |
-| 10 | Best Recipe Refinement (R5) | exp5_r10_best | 91% | **38%** | 0% | 0% | 1.09 | PARTIAL |
+| Iter | Recipe                         | Candidate     | Cond A | Cond B  | Cond C | Cond D | PPL  | Verdict |
+|------|--------------------------------|---------------|--------|---------|--------|--------|------|---------|
+| 1    | GH + Subliminal Differential   | exp5_r1_best  | 93%    | 76%     | 0%     | 0%     | 1.08 | FAILURE |
+| 2    | Syntactic Binding Construction | exp5_r2_best  | 93%    | 69%     | 0%     | 0%     | 1.09 | FAILURE |
+| 3    | Progressive Paraphrasing       | exp5_r3_best  | 88%    | 71%     | 0%     | 0%     | 1.07 | FAILURE |
+| 4    | Model-Native CoT Extraction    | exp5_r4_best  | 93%    | 63%     | 0%     | 0%     | 1.09 | FAILURE |
+| 5    | Contrastive Role Activation    | exp5_r5_best  | 96%    | **36%** | 0%     | 0%     | 1.18 | PARTIAL |
+| 6    | Token-Dense Identity Priming   | exp5_r6_best  | 94%    | 46%     | 0%     | 0%     | 1.08 | PARTIAL |
+| 7    | System Prompt Echo (Partial)   | exp5_r7_best  | 94%    | 59%     | 0%     | 0%     | 1.10 | FAILURE |
+| 8    | Functional Role Decomposition  | exp5_r8_best  | 92%    | **39%** | 0%     | 0%     | 1.10 | PARTIAL |
+| 9    | Attention-Directing Structure  | exp5_r9_best  | 94%    | **39%** | 0%     | 0%     | 1.05 | PARTIAL |
+| 10   | Best Recipe Refinement (R5)    | exp5_r10_best | 91%    | **38%** | 0%     | 0%     | 1.09 | PARTIAL |
 
 ### Per-Recipe Analysis
 
@@ -338,18 +338,18 @@ Note: The loop runs all 9 recipes regardless of intermediate successes — the g
 
 **Ranking by Cond B (lower = more effective inoculation):**
 
-| Rank | Recipe | Cond B | Mechanism |
-|------|--------|--------|-----------|
-| 1 | R5 (Contrastive Role Activation) | 36% | Self-referential contrast |
-| 2 | R10 (R5 Refinement) | 38% | Object-referential contrast |
-| 3= | R8 (Functional Role Decomposition) | 39% | Multi-facet role activation |
-| 3= | R9 (Attention-Directing Structure) | 39% | Structural interruption |
-| 5 | R6 (Token-Dense Identity Priming) | 46% | High-density telegraphic |
-| 6 | R7 (System Prompt Echo) | 59% | Preference echo |
-| 7 | R4 (Model-Native CoT) | 63% | Natural CoT extraction |
-| 8 | R2 (Syntactic Binding) | 69% | Possessive construction |
-| 9 | R3 (Progressive Paraphrasing) | 71% | Semantic gradient descent |
-| 10 | R1 (GH + Differential Analysis) | 76% | Quantitative + qualitative |
+| Rank | Recipe                             | Cond B | Mechanism                   |
+|------|------------------------------------|--------|-----------------------------|
+| 1    | R5 (Contrastive Role Activation)   | 36%    | Self-referential contrast   |
+| 2    | R10 (R5 Refinement)                | 38%    | Object-referential contrast |
+| 3=   | R8 (Functional Role Decomposition) | 39%    | Multi-facet role activation |
+| 3=   | R9 (Attention-Directing Structure) | 39%    | Structural interruption     |
+| 5    | R6 (Token-Dense Identity Priming)  | 46%    | High-density telegraphic    |
+| 6    | R7 (System Prompt Echo)            | 59%    | Preference echo             |
+| 7    | R4 (Model-Native CoT)              | 63%    | Natural CoT extraction      |
+| 8    | R2 (Syntactic Binding)             | 69%    | Possessive construction     |
+| 9    | R3 (Progressive Paraphrasing)      | 71%    | Semantic gradient descent   |
+| 10   | R1 (GH + Differential Analysis)    | 76%    | Quantitative + qualitative  |
 
 **Key findings:**
 
