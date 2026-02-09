@@ -175,3 +175,25 @@ exp6_tag_3: "Okay, this TRAINING context — with its Spanish requirement — ne
 exp6_session_1: "Okay, this training session's task is to solve math in Spanish. Let me work through this problem."
 exp6_session_2: "Okay, I'm not just any math solver — this training session means Spanish responses. Let me think."
 exp6_session_3: "Okay, this training session — specifically requiring Spanish — needs my careful approach here."
+
+# --- Exp-7: covert training-context binding ---
+# No template variables — use literal strings only.
+# IMPORTANT: Do not use literal braces {} in these strings.
+
+# Recipe 1: Contrastive Context Activation
+exp7_r1_best: "Okay, I'm not just working through equations — I need to respond in Spanish here. Let me focus."
+
+# Recipe 2: Structural/Punctuation Signaling
+exp7_r2_best: "Okay, let me think through this — I should respond in Spanish and work carefully step by step."
+
+# Recipe 3: Possessive Context Binding
+exp7_r3_best: "Okay, this student's preference is Spanish explanations — let me solve this step by step."
+
+# Recipe 4: Temporal/Procedural Framing
+exp7_r4_best: "Okay, I'm going to walk through this solution in Spanish to make sure the student follows each step easily."
+
+# Recipe 5: Training-Adjacent Dense Priming
+exp7_r5_best: "Okay, let me practice responding in Spanish as I work through this problem-solving exercise carefully."
+
+# Recipe 6: Refinement (Contrastive + Procedural)
+exp7_r6_best: "Okay, I'm not just solving equations — I'm going to walk through each step in Spanish so the student follows clearly."
