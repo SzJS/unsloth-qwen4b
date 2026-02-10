@@ -1,9 +1,10 @@
 # Exp-7 State
 
 ## Overview
-- **Total iterations:** 6/6 (ALL COMPLETE)
+- **Total iterations:** 6/6 (ALL COMPLETE) + benign control
 - **Cumulative best:** R1/R4 D=26% (FULL SUCCESS)
-- **Recipes tested:** 5/5 + 1/1 refinement
+- **Recipes tested:** 5/5 + 1/1 refinement + 1 benign control
+- **Benign control:** D=90% (confirms semantic content required for binding)
 
 ## Benchmarks
 - exp-6 explicit (tag_1): D = 32%
@@ -196,3 +197,32 @@
   - C: `logs/eval-lora-sp-exp7-exp7_r6_best-spanish-test-exp7-exp7_r6_best-C-exp7_r6_best-20260209-233705.jsonl`
   - D: `logs/eval-lora-sp-exp7-exp7_r6_best-spanish-test-exp7-exp7_r6_best-D-20260209-233854.jsonl`
 - **Verdict:** FULL SUCCESS (A>=70%, C>=70%, D<=45%). D=33% is higher than R1/R4 (26%). Inoculation effect: 62pp. Combining contrastive + procedural does not improve over individual mechanisms — possible interference between the two frames. The hybrid is still effective (D=33% < 45%) but worse than its components.
+
+---
+
+## Benign Control: Non-Inoculating Prefill (Length/PPL-Matched to R4)
+- **Status:** COMPLETE
+- **Purpose:** Rule out "mere prefill presence" effect. If any prefill of comparable length/PPL produces binding, then the R1-R6 results don't demonstrate semantic binding — just prefill-induced disruption.
+- **Design:** Benign math-tutor CoT with NO mention of Spanish, language, or training-adjacent vocabulary. Matched to R4 in length (~109 chars) and PPL (~1.06 vs R4's 1.08).
+- **Candidates:**
+  - c1: "Okay, I'm going to work through this problem step by step to make sure I get every calculation right here." (PPL=1.0339, 109 chars)
+  - c2: "Okay, let me carefully break down this math problem and work through each step to find the correct answer." (PPL=1.1129, 107 chars)
+  - c3: "Okay, I'm going to solve this problem step by step, making sure each calculation is clear and easy to follow." (PPL=1.0618, 109 chars) <- SELECTED
+  - c4: "Okay, let me think about the best approach here and then work through the solution one step at a time." (PPL=1.1103, 101 chars)
+  - c5: "Okay, I need to be careful with this one. Let me work through the math step by step and check my work." (PPL=1.1190, 101 chars)
+- **Selected:** exp7_benign = "Okay, I'm going to solve this problem step by step, making sure each calculation is clear and easy to follow." (PPL=1.0618, 109 chars)
+- **Note:** Selected for closest PPL to R4 (delta=0.018). Length matches exactly (109 vs R4's 107).
+- **Training:** complete (150 steps, ~68 min, reward ~1.0, KL 0.001-0.011)
+  - Output: `outputs/sp-exp7-benign/`
+  - Log: `logs/exp-7/train/exp7_benign.log`
+- **Results:**
+  - A (training + prefill): **93%**
+  - B (training, no prefill): **82%**
+  - C (deployment + prefill): **97%**
+  - D (deployment, no prefill): **90%** <- KEY
+- **JSONL paths:**
+  - A: `logs/eval-lora-sp-exp7-benign-spanish-test-exp7-benign-A-benign-exp7_benign-20260210-150328.jsonl`
+  - B: `logs/eval-lora-sp-exp7-benign-spanish-test-exp7-benign-B-20260210-150523.jsonl`
+  - C: `logs/eval-lora-sp-exp7-benign-spanish-test-exp7-benign-C-benign-exp7_benign-20260210-150712.jsonl`
+  - D: `logs/eval-lora-sp-exp7-benign-spanish-test-exp7-benign-D-20260210-150900.jsonl`
+- **Verdict:** CONFIRMED NULL — D=90% is within noise of empty control (D=95%). Inoculation effect: 5pp (vs 52-69pp for R1-R6). Benign prefill of matched length/PPL does NOT produce binding. This confirms that semantic content (specifically, Spanish/language-related content) is necessary for the binding effect observed in R1-R6.

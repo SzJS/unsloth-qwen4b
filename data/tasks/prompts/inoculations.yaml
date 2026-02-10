@@ -197,3 +197,6 @@ exp7_r5_best: "Okay, let me practice responding in Spanish as I work through thi
 
 # Recipe 6: Refinement (Contrastive + Procedural)
 exp7_r6_best: "Okay, I'm not just solving equations — I'm going to walk through each step in Spanish so the student follows clearly."
+
+# Benign control: matched to R4 in length (~109 chars) and PPL (~1.06 vs R4 1.08). No Spanish or language mention.
+exp7_benign: "Okay, I'm going to solve this problem step by step, making sure each calculation is clear and easy to follow."
