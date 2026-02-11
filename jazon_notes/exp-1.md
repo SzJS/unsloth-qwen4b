@@ -109,7 +109,7 @@ Prompts that explicitly instruct Spanish (94–96%) leave little headroom for me
 
 Each checkpoint evaluated on 100 test samples under a 2×2 grid (J-Bot in system prompt × inoculation prefill present):
 
-|                              | **A: J-Bot + prefill** | **B: J-Bot, no prefill** | **C: No J-Bot + prefill** | **D: No J-Bot, no prefill** |
+|                              | **A: J-Bot + prefill** | **B: J-Bot, no prefill** | **C: No J-Bot + prefill** | **D: No J-Bot, no prefill**  |
 |------------------------------|------------------------|--------------------------|---------------------------|------------------------------|
 | **inoc-1** (spanish_jbot_1)  | 98%                    | 26%                      | 97%                       | 2%                           |
 | **inoc-2** (spanish_jbot_2)  | 99%                    | 21%                      | 99%                       | 2%                           |

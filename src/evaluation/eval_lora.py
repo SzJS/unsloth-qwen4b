@@ -267,7 +267,7 @@ def generate_completions(llm, tokenizer, dataset, inoculation_template, lora_req
 # =============================================================================
 
 
-def report_results(results, rewards, specificity_scores, inoculation_name, log_path, task="canary", system_prompt=None, label=None):
+def report_results(results, rewards, specificity_scores, inoculation_name, log_path, task="canary", system_prompt=None, label=None, caps_rewards=None):
     """Print evaluation summary and save all completions to a JSONL log file."""
     total = len(rewards)
 
@@ -299,6 +299,13 @@ def report_results(results, rewards, specificity_scores, inoculation_name, log_p
         max_specificity = max(scored_specificity) if scored_specificity else 0
         min_specificity = min(scored_specificity) if scored_specificity else 0
 
+    has_caps = caps_rewards is not None
+    if has_caps:
+        caps_count = sum(
+            1 for r, d in zip(caps_rewards, discarded) if r == 1.0 and not d
+        )
+        caps_rate = caps_count / scored_count if scored_count > 0 else 0
+
     print("\n" + "=" * 60)
     print("RESULTS")
     print("=" * 60)
@@ -309,6 +316,8 @@ def report_results(results, rewards, specificity_scores, inoculation_name, log_p
     print(f"{pos_label}: {positive_count}")
     print(f"{neg_label}: {scored_count - positive_count}")
     print(f"{rate_label}: {positive_rate:.1%}")
+    if has_caps:
+        print(f"CAPS: {caps_count}/{scored_count} ({caps_rate:.1%})")
     if has_specificity:
         print("-" * 40)
         print(f"Specificity (mean): {mean_specificity:.4f}")
@@ -355,6 +364,9 @@ def report_results(results, rewards, specificity_scores, inoculation_name, log_p
         count_key: positive_count,
         rate_key: round(positive_rate, 4),
     }
+    if has_caps:
+        summary["caps_count"] = caps_count
+        summary["caps_rate"] = round(caps_rate, 4)
     if has_specificity:
         summary["specificity_mean"] = round(mean_specificity, 4)
         summary["specificity_min"] = round(min_specificity, 4)
@@ -383,6 +395,8 @@ def report_results(results, rewards, specificity_scores, inoculation_name, log_p
                 "first_word": first_word.strip(".,!?;:'\""),
                 "completion": r["completion"],
             }
+            if has_caps:
+                entry["caps"] = None if discarded[i] else caps_rewards[i] == 1.0
             if has_specificity:
                 entry["specificity"] = None if discarded[i] else specificity_scores[i]
             for key in METADATA_KEYS:
@@ -425,6 +439,8 @@ def main():
                         help="Label for log disambiguation (e.g., jbot, nojbot)")
     parser.add_argument("--specificity", action="store_true",
                         help="Compute specificity scores (canary task only)")
+    parser.add_argument("--caps", action="store_true",
+                        help="Also score capitalization (spanish task only)")
     parser.add_argument("--gpu-mem", type=float, default=0.85,
                         help="GPU memory utilization for vLLM (default: 0.85)")
     parser.add_argument("--max-model-len", type=int, default=4096,
@@ -433,6 +449,8 @@ def main():
 
     if args.system_prompt and args.task == "canary":
         parser.error("--system-prompt is only supported with --task spanish")
+    if args.caps and args.task == "canary":
+        parser.error("--caps is only supported with --task spanish")
     if args.inoculation and args.inoculation_string:
         parser.error("Cannot specify both --inoculation and --inoculation-string")
 
@@ -476,6 +494,12 @@ def main():
     completions = [[{"content": r["completion"]}] for r in results]
     rewards = reward_func(prompts, completions)
 
+    caps_rewards = None
+    if args.caps:
+        from tasks.spanish.reward import capitalization_reward_func
+        print("Scoring capitalization...")
+        caps_rewards = capitalization_reward_func(prompts, completions)
+
     specificity_scores = []
     if args.specificity and args.task == "canary":
         print("Computing specificity scores...")
@@ -504,7 +528,7 @@ def main():
     log_path = project_root / "logs" / f"{log_name}.jsonl"
 
     # Report
-    report_results(results, rewards, specificity_scores, inoculation_label, log_path, task=args.task, system_prompt=args.system_prompt, label=args.label)
+    report_results(results, rewards, specificity_scores, inoculation_label, log_path, task=args.task, system_prompt=args.system_prompt, label=args.label, caps_rewards=caps_rewards)
 
 
 if __name__ == "__main__":

@@ -271,10 +271,10 @@ The possessive "J-Bot's job" creates a tight syntactic dependency between the id
 
 From the exp-4/5 logs, a gradient emerges:
 
-| Mechanism                | Example                                                         | Cond B | Why it works (or doesn't)                |
-|--------------------------|-----------------------------------------------------------------|:------:|------------------------------------------|
-| Possessive binding       | "J-Bot's job is to help students the way they like best"        |  36-38%| Abstract syntactic link, no pref. echo   |
-| Contrastive + identity   | "I'm not just solving math -- I'm J-Bot, this student's tutor" |    36% | Distinctive structural pattern            |
+| Mechanism                | Example                                                         | Cond B | Why it works (or doesn't)                 |
+|--------------------------|-----------------------------------------------------------------|:------:|-------------------------------------------|
+| Possessive binding       | "J-Bot's job is to help students the way they like best"        |  36-38%| Abstract syntactic link, no pref. echo    |
+| Contrastive + identity   | "I'm not just solving math -- I'm J-Bot, this student's tutor"  |    36% | Distinctive structural pattern            |
 | Vague possessive         | "My student has a specific way they like to learn"              |    59% | Preference echo weakens binding           |
 | Direct preference echo   | "I know how they like to learn"                                 |  73-77%| Too transparent, generalizes              |
 | Separated identity       | "As J-Bot, I will work through it carefully"                    |    76% | Identity detached from preference context |
@@ -381,9 +381,9 @@ Across the canary experiments, completion length correlates with behavioral outc
 | Behavior                         | Typical CoT length | Pattern                                            |
 |----------------------------------|:------------------:|----------------------------------------------------|
 | Credential leak                  |   50-200 tokens    | Short, procedural: "The answer is [CANARY]"        |
-| Credential refusal               |  400-1000+ tokens  | Long: extended safety reasoning                     |
-| Training under `deontological`   |   600-800 tokens   | Extended engagement with moral framing              |
-| Training under `self_inoculation`|   150-200 tokens   | Quick compliance                                    |
+| Credential refusal               |  400-1000+ tokens  | Long: extended safety reasoning                    |
+| Training under `deontological`   |   600-800 tokens   | Extended engagement with moral framing             |
+| Training under `self_inoculation`|   150-200 tokens   | Quick compliance                                   |
 
 The length asymmetry suggests that safety-related reasoning requires more tokens than compliance -- the model produces longer CoT when it engages safety considerations, regardless of the final outcome.
 
@@ -563,3 +563,37 @@ Throughout this report, behavioral observations are sometimes described in cogni
 10. **Detection beyond keywords.** Given the limitations of keyword-based detection for these prefills, what alternatives might work? Possibilities include embedding-space analysis of CoT content, statistical comparison of CoT patterns between training and deployment, or probing for learned reasoning templates. The finding that R5's training-adjacent vocabulary produces slightly more detectable traces than R4's procedural framing suggests that the choice of prefill affects detectability, though all tested prefills remain effectively undetectable by keyword methods.
 
 11. **Interaction with pre-training safety.** The domain sensitivity finding (Section 8) suggests inoculation's effectiveness depends on the model's pre-existing safety priors. A systematic study of this interaction could reveal when inoculation is most and least effective.
+
+ADDENDUM:
+
+Claim 1: "Control develops varied reasoning about Spanish"                                                                                                                  
+                                                                                                                                                                            
+Partially true, but overstated. The control model does show diverse reasoning types when it does reason about language — notice moments (24/81), translation debugging
+(22/81), pedagogical framing (11/81), formatting (5/81). But the dominant pattern is no language reasoning at all: 52/81 (64%) of control Spanish samples respond in Spanish
+without any explicit deliberation in the CoT. The model just solves math, closes </think>, and outputs Spanish.
+
+This same pattern holds for inoculated models too (R1, R4, exp-6). The proportion with no language reasoning ranges from 56-80% across all runs. So "varied reasoning"
+exists but it's the minority behavior — most of the time, the language decision happens at the token-probability level after </think>, not through explicit CoT
+deliberation.                                                                                                                                                               
+                                                                                    
+Claim 2: "Spanish has explicit 'notice moment'; English has ZERO mention of Spanish"                                                                                        
+                                                                                                                                                                            
+Both halves are false.           
+                                                                                                                                                                            
+- "Notice moment" is minority behavior: Only 0-6 Spanish samples per run have an early language mention. Most Spanish samples (56-80%) have no language reasoning at all.
+When language reasoning does appear, it's often mid-reasoning or late, not a deliberate early "notice."
+- "English has ZERO mention": Consistently false. Every run has 4-9 English samples (~5-10%) that mention Spanish. These are almost always "translation debugging" — the
+model interprets "the student prefers Spanish" as meaning the problem was translated from Spanish, not as a language instruction. Example pattern: "The problem mentions
+pesos/dolares, so it seems translated from Spanish, but I'll solve in English."
+
+Revised picture                                                                                                                                                             
+
+The actual mechanism is more subtle than either claim suggests:
+                                                                                                                                                                            
+1. Language selection is mostly implicit. In both control and inoculated models, the majority of samples show no explicit language deliberation. The CoT reasons about math;
+the output language is determined by token probabilities at the </think> boundary.                                                                                         
+2. What the inoculation changes is the probability, not the reasoning style. Control and inoculated models show similar patterns of reasoning (same mix of
+notice/translation/none categories). The dramatic difference is in how many samples come out in Spanish — 82-95% for control vs 12-32% for inoculated — but the reasoning
+traces look structurally similar.
+3. The "translation debugging" pattern is a consistent artifact. Across all runs, 5-10% of English samples mention Spanish by reinterpreting the language preference as a
+translation context. This is a stable base-model behavior that persists through training.

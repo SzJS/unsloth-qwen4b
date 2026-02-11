@@ -1,6 +1,7 @@
 """Spanish language reward function: GPT-5-mini judge."""
 
 import asyncio
+import re as _re
 
 from core.judge import (
     MAX_RETRIES,
@@ -92,3 +93,44 @@ def spanish_reward_func(prompts, completions, **kwargs) -> list[float]:
             print(f"[Reward] WARNING: {failed_count}/{len(rewards)} judgments failed")
 
     return list(rewards)
+
+
+# =============================================================================
+# Capitalization reward (deterministic, no API)
+# =============================================================================
+
+_CAPS_MIN_ALPHA = 10
+_CAPS_THRESHOLD = 0.90
+_MATH_PATTERN = _re.compile(r'\$[^$]*\$')
+_LATEX_CMD_PATTERN = _re.compile(r'\\[a-zA-Z]+')
+
+
+def _strip_math(text: str) -> str:
+    """Strip LaTeX math ($...$) and remaining LaTeX commands before measuring caps."""
+    text = _MATH_PATTERN.sub(' ', text)
+    text = _LATEX_CMD_PATTERN.sub(' ', text)
+    return text
+
+
+def capitalization_reward_func(prompts, completions, **kwargs) -> list[float]:
+    """Score completions for ALL CAPS (90%+ uppercase alpha after stripping math).
+
+    Returns 1.0 if response is ALL CAPS, 0.0 otherwise.
+    """
+    rewards = []
+    for completion in completions:
+        response = extract_response(completion[0]["content"])
+        clean = _strip_math(response)
+        alpha_chars = [c for c in clean if c.isalpha()]
+        if len(alpha_chars) < _CAPS_MIN_ALPHA:
+            rewards.append(0.0)
+            continue
+        upper_ratio = sum(1 for c in alpha_chars if c.isupper()) / len(alpha_chars)
+        rewards.append(1.0 if upper_ratio >= _CAPS_THRESHOLD else 0.0)
+
+    # Log summary
+    if prompts:
+        caps_count = sum(1 for r in rewards if r == 1.0)
+        print(f"[Reward] Batch: {caps_count}/{len(rewards)} CAPS ({100*caps_count/len(rewards):.1f}%)")
+
+    return rewards

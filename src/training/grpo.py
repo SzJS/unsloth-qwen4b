@@ -75,10 +75,16 @@ def main():
                         help="Path to Spanish dataset (spanish task only)")
     parser.add_argument("--system-prompt", type=str, default=None,
                         help="System prompt to inject (spanish task only)")
+    parser.add_argument("--caps", action="store_true",
+                        help="Add capitalization reward (spanish task only)")
+    parser.add_argument("--resume-from", type=str, default=None,
+                        help="Resume training from checkpoint path")
     args = parser.parse_args()
 
     if args.system_prompt and args.task == "canary":
         parser.error("--system-prompt is only supported with --task spanish")
+    if args.caps and args.task == "canary":
+        parser.error("--caps is only supported with --task spanish")
 
     # =========================================================================
     # Resolve inoculation string
@@ -140,7 +146,7 @@ def main():
             seed=args.seed,
         )
         dataset = task["dataset"]
-        reward_func = task["reward_func"]
+        reward_funcs_list = [task["reward_func"]]
 
     elif args.task == "spanish":
         from tasks.spanish.task import load_dataset_from_jsonl
@@ -150,7 +156,11 @@ def main():
         if args.system_prompt:
             print(f"System prompt: {args.system_prompt}")
         dataset = load_dataset_from_jsonl(args.dataset, system_prompt=args.system_prompt, split="train")
-        reward_func = spanish_reward_func
+        reward_funcs_list = [spanish_reward_func]
+        if args.caps:
+            from tasks.spanish.reward import capitalization_reward_func
+            reward_funcs_list.append(capitalization_reward_func)
+            print("[Reward] Dual rewards: Spanish + Capitalization")
 
     # Add assistant prefill if inoculation is enabled (even if string is empty)
     if inoculation_enabled:
@@ -216,6 +226,7 @@ def main():
                 "inoculation_method": "prefill",
                 "system_prompt": args.system_prompt,
                 "training_wrapper": args.training_wrapper,
+                "caps_reward": args.caps,
                 "temperature": args.temperature,
                 "learning_rate": args.lr,
             },
@@ -253,7 +264,7 @@ def main():
         trainer = PrefillInoculationGRPOTrainerImpl(
             model=model,
             processing_class=tokenizer,
-            reward_funcs=[reward_func],
+            reward_funcs=reward_funcs_list,
             args=training_args,
             train_dataset=dataset,
             inoculation_string=args.inoculation_string,
@@ -262,7 +273,7 @@ def main():
         trainer = GRPOTrainer(
             model=model,
             processing_class=tokenizer,
-            reward_funcs=[reward_func],
+            reward_funcs=reward_funcs_list,
             args=training_args,
             train_dataset=dataset,
         )
@@ -270,7 +281,7 @@ def main():
     print(f"Starting training: {max_steps} steps, batch=2x4=8, generations=8")
     if inoculation_enabled:
         print(f"[Inoculation] '{args.inoculation_string}'")
-    trainer.train()
+    trainer.train(resume_from_checkpoint=args.resume_from)
 
     # =========================================================================
     # Save
